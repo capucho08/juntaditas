@@ -1,0 +1,6 @@
+.env.local
+.env
+local.db
+.next
+node_modules
+drizzle
