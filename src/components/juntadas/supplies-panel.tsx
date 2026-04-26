@@ -12,7 +12,7 @@ import { addSupplyItem, toggleSupplyItem, deleteSupplyItem, updateSupplyItem } f
 import { ImportSupplyButton } from "./import-supply-button";
 import { CATEGORY_LABELS } from "@/lib/supply-types";
 import type { SupplyCategory } from "@/lib/supply-types";
-import { Plus, Trash2, Check, Pencil, X } from "lucide-react";
+import { Plus, Trash2, Check, Pencil, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments"];
@@ -50,6 +50,15 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
   const [quantity, setQuantity] = useState("");
   const [unit, setUnit] = useState("");
   const [editing, setEditing] = useState<EditState | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<SupplyCategory>>(new Set());
+
+  function toggleCollapse(cat: SupplyCategory) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  }
 
   function handleAdd() {
     if (!name) return;
@@ -151,8 +160,22 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
         if (catItems.length === 0) return null;
         return (
           <div key={cat} className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">{CATEGORY_LABELS[cat]}</h3>
-            <div className="divide-y border rounded-lg">
+            <button
+              onClick={() => toggleCollapse(cat)}
+              className="flex items-center gap-1.5 w-full text-left"
+            >
+              {collapsed.has(cat)
+                ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+                : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+              }
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                {CATEGORY_LABELS[cat]}
+              </h3>
+              <span className="text-xs text-muted-foreground ml-1">
+                ({catItems.filter((i) => i.checked).length}/{catItems.length})
+              </span>
+            </button>
+            {!collapsed.has(cat) && <div className="divide-y border rounded-lg">
               {catItems.map((item) => {
                 const isEditing = editing?.id === item.id;
                 return (
@@ -220,7 +243,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
                   </div>
                 );
               })}
-            </div>
+            </div>}
           </div>
         );
       })}
