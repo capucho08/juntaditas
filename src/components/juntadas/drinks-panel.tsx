@@ -136,7 +136,7 @@ export function DrinksPanel({ juntadaId, currentUserId, configs, preferences, at
                         onChange={(e) => setConfigValue(e.target.value)}
                         autoFocus
                       />
-                      <Button size="sm" className="h-7 text-xs" onClick={() => saveConfig(drink)} disabled={isPending}>Ok</Button>
+                      <Button size="sm" className="h-7 text-xs" onClick={() => saveConfig(drink)} disabled={isPending}>Listo</Button>
                       <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingConfig(null)}>×</Button>
                     </div>
                   ) : (

@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getJuntada } from "@/db/queries/juntadas";
 import { getExpenses } from "@/db/queries/expenses";
+import { getMealsForJuntada } from "@/db/queries/meals";
+import { getBringTemplates } from "@/db/queries/bring-templates";
+import { getSupplyTemplates } from "@/db/queries/supply-templates";
 import { getSupplyItems, getThingsToBring } from "@/db/queries/supplies";
 import { getDrinkConfigs, getDrinkPreferences } from "@/db/queries/drinks";
 import { getSession } from "@/auth/server";
@@ -25,12 +28,15 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
   const [juntada, session] = await Promise.all([getJuntada(id), getSession()]);
   if (!juntada || !session) notFound();
 
-  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences] = await Promise.all([
+  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences, meals, templates, supplyTemplates] = await Promise.all([
     getExpenses(id),
     getSupplyItems(id),
     getThingsToBring(id),
     getDrinkConfigs(id),
     getDrinkPreferences(id),
+    getMealsForJuntada(id),
+    getBringTemplates(),
+    getSupplyTemplates(),
   ]);
 
   const isAdmin = session.user.role === "admin";
@@ -121,7 +127,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
         </TabsContent>
 
         <TabsContent value="surtido" className="pt-4">
-          <SuppliesPanel juntadaId={id} items={supplyItems} />
+          <SuppliesPanel juntadaId={id} items={supplyItems} supplyTemplates={supplyTemplates as any} />
         </TabsContent>
 
         <TabsContent value="llevar" className="pt-4">
@@ -129,6 +135,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             juntadaId={id}
             things={things as any}
             attendees={attendees as any}
+            templates={templates as any}
           />
         </TabsContent>
 
@@ -138,6 +145,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             dateStart={juntada.dateStart}
             dateEnd={juntada.dateEnd}
             expenses={expenses as any}
+            meals={meals as any}
             attendance={juntada.attendance as any}
             attendees={attendees as any}
             currentUserId={session.user.id}

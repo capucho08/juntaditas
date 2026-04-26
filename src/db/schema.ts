@@ -73,11 +73,12 @@ export const juntada = sqliteTable("juntada", {
 // ─── Attendance ───────────────────────────────────────────────────────────────
 
 // day_slot: morning | noon | afternoon | night
+// status: pending = sin decidir, confirmed = va, not_going = no va
 export const attendance = sqliteTable("attendance", {
   id: text("id").primaryKey(),
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-  confirmed: integer("confirmed", { mode: "boolean" }).notNull().default(false),
+  status: text("status", { enum: ["pending", "confirmed", "not_going"] }).notNull().default("pending"),
   arrivalDate: text("arrival_date"), // YYYY-MM-DD
   arrivalSlot: text("arrival_slot", { enum: ["morning", "noon", "afternoon", "night"] }),
   departureDate: text("departure_date"), // YYYY-MM-DD
@@ -163,6 +164,44 @@ export const thingResponsible = sqliteTable("thing_responsible", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
 });
 
+// ─── Bring templates (listas reutilizables cross-juntadas) ───────────────────
+
+export const bringTemplate = sqliteTable("bring_template", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdBy: text("created_by").notNull().references(() => user.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export const bringTemplateItem = sqliteTable("bring_template_item", {
+  id: text("id").primaryKey(),
+  templateId: text("template_id").notNull().references(() => bringTemplate.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+// ─── Supply templates (plantillas de surtido por categoría) ──────────────────
+
+export const supplyTemplate = sqliteTable("supply_template", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category", {
+    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments"],
+  }).notNull(),
+  createdBy: text("created_by").notNull().references(() => user.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export const supplyTemplateItem = sqliteTable("supply_template_item", {
+  id: text("id").primaryKey(),
+  templateId: text("template_id").notNull().references(() => supplyTemplate.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  quantity: text("quantity"),
+  unit: text("unit"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
 export const expense = sqliteTable("expense", {
@@ -171,6 +210,7 @@ export const expense = sqliteTable("expense", {
   type: text("type", { enum: ["house", "general", "meal", "custom"] }).notNull(),
   description: text("description").notNull(),
   amount: real("amount").notNull(),
+  currency: text("currency", { enum: ["UYU", "USD"] }).notNull().default("UYU"),
   paidBy: text("paid_by").notNull().references(() => user.id),
   date: text("date").notNull(), // YYYY-MM-DD
   mealId: text("meal_id").references(() => meal.id), // only for type=meal
@@ -251,6 +291,24 @@ export const thingResponsibleRelations = relations(thingResponsible, ({ one }) =
   user: one(user, { fields: [thingResponsible.userId], references: [user.id] }),
 }));
 
+export const supplyTemplateRelations = relations(supplyTemplate, ({ one, many }) => ({
+  createdByUser: one(user, { fields: [supplyTemplate.createdBy], references: [user.id] }),
+  items: many(supplyTemplateItem),
+}));
+
+export const supplyTemplateItemRelations = relations(supplyTemplateItem, ({ one }) => ({
+  template: one(supplyTemplate, { fields: [supplyTemplateItem.templateId], references: [supplyTemplate.id] }),
+}));
+
+export const bringTemplateRelations = relations(bringTemplate, ({ one, many }) => ({
+  createdByUser: one(user, { fields: [bringTemplate.createdBy], references: [user.id] }),
+  items: many(bringTemplateItem),
+}));
+
+export const bringTemplateItemRelations = relations(bringTemplateItem, ({ one }) => ({
+  template: one(bringTemplate, { fields: [bringTemplateItem.templateId], references: [bringTemplate.id] }),
+}));
+
 export const expenseRelations = relations(expense, ({ one, many }) => ({
   juntada: one(juntada, { fields: [expense.juntadaId], references: [juntada.id] }),
   paidByUser: one(user, { fields: [expense.paidBy], references: [user.id] }),
@@ -272,6 +330,7 @@ export const notificationRelations = relations(notification, ({ one }) => ({
 export type User = typeof user.$inferSelect;
 export type Juntada = typeof juntada.$inferSelect;
 export type Attendance = typeof attendance.$inferSelect;
+export type AttendanceStatus = "pending" | "confirmed" | "not_going";
 export type Meal = typeof meal.$inferSelect;
 export type MealCost = typeof mealCost.$inferSelect;
 export type DrinkConfig = typeof drinkConfig.$inferSelect;
@@ -280,3 +339,7 @@ export type SupplyItem = typeof supplyItem.$inferSelect;
 export type ThingToBring = typeof thingToBring.$inferSelect;
 export type Expense = typeof expense.$inferSelect;
 export type Notification = typeof notification.$inferSelect;
+export type BringTemplate = typeof bringTemplate.$inferSelect;
+export type BringTemplateItem = typeof bringTemplateItem.$inferSelect;
+export type SupplyTemplate = typeof supplyTemplate.$inferSelect;
+export type SupplyTemplateItem = typeof supplyTemplateItem.$inferSelect;

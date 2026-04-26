@@ -39,7 +39,7 @@ export default async function HomePage() {
         <div className="grid gap-4 sm:grid-cols-2">
           {juntadas.map((j) => {
             const attendees = j.attendance ?? [];
-            const confirmed = attendees.filter((a) => a.confirmed).length;
+            const confirmed = attendees.filter((a) => a.status === "confirmed").length;
             const total = attendees.length;
             const now = new Date().toISOString().split("T")[0];
             const isPast = j.dateEnd < now;

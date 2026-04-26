@@ -31,9 +31,9 @@ type Slot = keyof typeof SLOT_ORDER;
 
 export const SLOT_LABELS: Record<Slot, string> = {
   morning: "Mañana",
-  noon: "Mediodía",
+  noon: "Mediodía (almuerzo)",
   afternoon: "Tarde",
-  night: "Noche",
+  night: "Noche (cena)",
 };
 
 export function slotIndex(slot: Slot): number {

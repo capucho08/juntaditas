@@ -33,6 +33,16 @@ export async function toggleSupplyItem(id: string, checked: boolean, juntadaId: 
   revalidatePath(`/juntadas/${juntadaId}`);
 }
 
+export async function updateSupplyItem(
+  id: string,
+  data: { name: string; quantity?: string; unit?: string; category: SupplyCategory },
+  juntadaId: string
+) {
+  await requireSession();
+  await db.update(supplyItem).set(data).where(eq(supplyItem.id, id));
+  revalidatePath(`/juntadas/${juntadaId}`);
+}
+
 export async function deleteSupplyItem(id: string, juntadaId: string) {
   await requireSession();
   await db.delete(supplyItem).where(eq(supplyItem.id, id));

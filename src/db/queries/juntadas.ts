@@ -87,7 +87,7 @@ export async function joinJuntada(juntadaId: string) {
 export async function updateAttendance(
   juntadaId: string,
   data: {
-    confirmed?: boolean;
+    status?: "pending" | "confirmed" | "not_going";
     arrivalDate?: string;
     arrivalSlot?: "morning" | "noon" | "afternoon" | "night";
     departureDate?: string;

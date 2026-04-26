@@ -8,7 +8,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { addThingToBring, toggleThingToBring, deleteThingToBring, updateThingResponsibles } from "@/db/queries/supplies";
-import { Plus, Trash2, Check, Pencil } from "lucide-react";
+import { ImportTemplateButton } from "./import-template-button";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { Plus, Trash2, Check, Pencil, UserRound, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Attendee = { id: string; name: string; email: string };
@@ -19,13 +21,16 @@ type Thing = {
   responsibles: { user: Attendee }[];
 };
 
+type Template = { id: string; name: string; description: string | null; items: { id: string }[] };
+
 type Props = {
   juntadaId: string;
   things: Thing[];
   attendees: Attendee[];
+  templates: Template[];
 };
 
-export function ThingsPanel({ juntadaId, things, attendees }: Props) {
+export function ThingsPanel({ juntadaId, things, attendees, templates }: Props) {
   const [addOpen, setAddOpen] = useState(false);
   const [editThing, setEditThing] = useState<Thing | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -72,7 +77,9 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
         <p className="text-sm text-muted-foreground">
           {things.filter((t) => t.checked).length}/{things.length} confirmadas
         </p>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <div className="flex gap-2">
+          <ImportTemplateButton juntadaId={juntadaId} templates={templates} />
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger render={<Button size="sm"><Plus className="w-4 h-4 mr-1" />Agregar</Button>} />
           <DialogContent>
             <DialogHeader>
@@ -85,16 +92,12 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
               </div>
               <div className="space-y-2">
                 <Label>Responsables (opcional)</Label>
-                <div className="flex flex-wrap gap-2">
-                  {attendees.map((a) => (
-                    <button key={a.id} type="button" onClick={() => toggleId(a.id)}
-                      className={cn("px-3 py-1 rounded-full text-sm border transition-colors",
-                        selectedIds.includes(a.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
-                      )}>
-                      {a.name || a.email.split("@")[0]}
-                    </button>
-                  ))}
-                </div>
+                <MultiSelect
+                  options={attendees.map((a) => ({ id: a.id, label: a.name || a.email.split("@")[0] }))}
+                  selected={selectedIds}
+                  onChange={setSelectedIds}
+                  placeholder="Asignar responsables..."
+                />
               </div>
             </div>
             <DialogFooter>
@@ -102,6 +105,7 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Edit responsibles dialog */}
@@ -110,16 +114,12 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
           <DialogHeader>
             <DialogTitle>Responsables — {editThing?.name}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-wrap gap-2">
-            {attendees.map((a) => (
-              <button key={a.id} type="button" onClick={() => toggleId(a.id)}
-                className={cn("px-3 py-1 rounded-full text-sm border transition-colors",
-                  selectedIds.includes(a.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
-                )}>
-                {a.name || a.email.split("@")[0]}
-              </button>
-            ))}
-          </div>
+          <MultiSelect
+            options={attendees.map((a) => ({ id: a.id, label: a.name || a.email.split("@")[0] }))}
+            selected={selectedIds}
+            onChange={setSelectedIds}
+            placeholder="Seleccioná responsables..."
+          />
           <DialogFooter>
             <Button onClick={handleUpdateResponsibles} disabled={isPending}>Guardar</Button>
           </DialogFooter>
@@ -129,9 +129,21 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
       {things.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-8">No hay cosas cargadas todavía.</p>
       ) : (
+        <>
+          {things.some((t) => !t.checked && t.responsibles.length === 0) && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              {things.filter((t) => !t.checked && t.responsibles.length === 0).length} item{things.filter((t) => !t.checked && t.responsibles.length === 0).length !== 1 ? "s" : ""} sin responsable asignado
+            </div>
+          )}
         <div className="divide-y border rounded-lg">
-          {things.map((thing) => (
-            <div key={thing.id} className="flex items-center gap-3 px-3 py-3">
+          {things.map((thing) => {
+            const unassigned = thing.responsibles.length === 0 && !thing.checked;
+            return (
+            <div key={thing.id} className={cn(
+              "flex items-center gap-3 px-3 py-3 transition-colors",
+              unassigned && "bg-amber-50/60"
+            )}>
               <button
                 onClick={() => handleToggle(thing.id, thing.checked)}
                 disabled={isPending}
@@ -143,16 +155,25 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
                 {thing.checked && <Check className="w-3 h-3 text-primary-foreground" />}
               </button>
               <div className="flex-1 min-w-0">
-                <span className={cn("text-sm", thing.checked && "line-through text-muted-foreground")}>
-                  {thing.name}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className={cn("text-sm", thing.checked && "line-through text-muted-foreground")}>
+                    {thing.name}
+                  </span>
+                  {unassigned && (
+                    <span className="text-xs text-amber-600 font-medium flex items-center gap-0.5">
+                      <UserRound className="w-3 h-3" />
+                      Sin asignar
+                    </span>
+                  )}
+                </div>
                 {thing.responsibles.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <UserRound className="w-3 h-3 shrink-0" />
                     {thing.responsibles.map((r) => r.user.name || r.user.email.split("@")[0]).join(", ")}
                   </p>
                 )}
               </div>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+              <Button variant="ghost" size="sm" className={cn("h-7 w-7 p-0", unassigned && "text-amber-600 hover:text-amber-700")}
                 onClick={() => {
                   setEditThing(thing);
                   setSelectedIds(thing.responsibles.map((r) => r.user.id));
@@ -163,8 +184,10 @@ export function ThingsPanel({ juntadaId, things, attendees }: Props) {
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </div>
-          ))}
+            );
+          })}
         </div>
+        </>
       )}
     </div>
   );

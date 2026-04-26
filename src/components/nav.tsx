@@ -7,6 +7,10 @@ import type { AuthUser } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+function navLinkClass(active: boolean) {
+  return `text-sm ${active ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`;
+}
+
 export function Nav() {
   const { data: session } = useSession();
   const user = session?.user as AuthUser | undefined;
@@ -21,17 +25,22 @@ export function Nav() {
           <Link href="/" className="font-semibold text-lg">
             Juntaditas 🎉
           </Link>
-          <Link
-            href="/"
-            className={`text-sm ${pathname === "/" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
-          >
+          <Link href="/" className={navLinkClass(pathname === "/")}>
             Juntadas
           </Link>
+          <Link href="/listas" className={navLinkClass(pathname.startsWith("/listas"))}>
+            Listas
+          </Link>
+          {user.role === "admin" && (
+            <Link href="/usuarios" className={navLinkClass(pathname === "/usuarios")}>
+              Usuarios
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground hidden sm:block">
+          <Link href="/perfil" className={`text-sm hidden sm:block ${pathname === "/perfil" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}>
             {user.name || user.email}
-          </span>
+          </Link>
           {user.role === "admin" && (
             <Badge variant="secondary">Admin</Badge>
           )}

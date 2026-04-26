@@ -26,9 +26,10 @@ export async function addExpense(data: {
   type: ExpenseType;
   description: string;
   amount: number;
+  currency: "UYU" | "USD";
   date: string;
   mealId?: string;
-  participantIds?: string[]; // for custom type
+  participantIds?: string[];
 }) {
   const session = await requireSession();
   const id = generateId();
@@ -39,6 +40,7 @@ export async function addExpense(data: {
     type: data.type,
     description: data.description,
     amount: data.amount,
+    currency: data.currency,
     paidBy: session.user.id,
     date: data.date,
     mealId: data.mealId,
