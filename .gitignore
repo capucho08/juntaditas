@@ -4,3 +4,8 @@ local.db
 .next
 node_modules
 drizzle
+
+# macOS metadata
+._*
+.DS_Store
+__MACOSX
