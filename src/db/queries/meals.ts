@@ -23,6 +23,7 @@ export async function upsertMeal(data: {
   type: "lunch" | "dinner";
   description: string;
   cookIds: string[];
+  vegetarianOption: string;
 }) {
   await requireSession();
 
@@ -37,7 +38,7 @@ export async function upsertMeal(data: {
   const mealId = existing?.id ?? generateId();
 
   if (existing) {
-    await db.update(meal).set({ description: data.description }).where(eq(meal.id, mealId));
+    await db.update(meal).set({ description: data.description, vegetarianOption: data.vegetarianOption || null }).where(eq(meal.id, mealId));
     await db.delete(mealCook).where(eq(mealCook.mealId, mealId));
   } else {
     await db.insert(meal).values({
@@ -46,6 +47,7 @@ export async function upsertMeal(data: {
       date: data.date,
       type: data.type,
       description: data.description,
+      vegetarianOption: data.vegetarianOption || null,
     });
   }
 

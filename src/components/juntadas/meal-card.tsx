@@ -15,7 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { upsertMeal, deleteMeal, addMealCost, deleteMealCost } from "@/db/queries/meals";
-import { ChefHat, Plus, Trash2, DollarSign, Users } from "lucide-react";
+import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +24,7 @@ type Attendee = { id: string; name: string; email: string };
 type MealData = {
   id: string;
   description: string | null;
+  vegetarianOption: string | null;
   cooks: { user: Attendee }[];
   costs: { id: string; amount: number; description: string | null; paidByUser: Attendee }[];
 } | null;
@@ -44,6 +45,7 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
   const [isPending, startTransition] = useTransition();
 
   const [description, setDescription] = useState(meal?.description ?? "");
+  const [vegetarianOption, setVegetarianOption] = useState(meal?.vegetarianOption ?? "");
   const [selectedCooks, setSelectedCooks] = useState<string[]>(
     meal?.cooks.map((c) => c.user.id) ?? []
   );
@@ -60,7 +62,7 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
 
   function handleSave() {
     startTransition(async () => {
-      await upsertMeal({ juntadaId, date, type, description, cookIds: selectedCooks });
+      await upsertMeal({ juntadaId, date, type, description, cookIds: selectedCooks, vegetarianOption });
       setOpen(false);
     });
   }
@@ -159,6 +161,7 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
             setOpen(v);
             if (v) {
               setDescription(meal?.description ?? "");
+              setVegetarianOption(meal?.vegetarianOption ?? "");
               setSelectedCooks(meal?.cooks.map((c) => c.user.id) ?? []);
             }
           }}>
@@ -182,6 +185,15 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><LeafyGreen className="w-4 h-4" style={{ color: "#16a34a" }} /> Opción vegetariana (opcional)</Label>
+                  <Input
+                    placeholder="Ej: Pizza, empanadas de verdura..."
+                    value={vegetarianOption}
+                    onChange={(e) => setVegetarianOption(e.target.value)}
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label>Cocineros</Label>
                   <div className="flex flex-wrap gap-2">
@@ -216,6 +228,12 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
       {meal ? (
         <div className="space-y-2 text-sm">
           <p className="text-foreground">{meal.description}</p>
+          {meal.vegetarianOption && (
+            <p className="flex items-center gap-1.5 text-muted-foreground">
+              <LeafyGreen className="w-3.5 h-3.5 shrink-0" style={{ color: "#16a34a" }} />
+              {meal.vegetarianOption}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-3 text-muted-foreground">
             {meal.cooks.length > 0 && (

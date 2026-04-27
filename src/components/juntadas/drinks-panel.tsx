@@ -8,23 +8,33 @@ import { Separator } from "@/components/ui/separator";
 import { upsertDrinkPreference, upsertDrinkConfig } from "@/db/queries/drinks";
 import { DRINK_LABELS, DRINK_DEFAULTS } from "@/lib/drink-types";
 import type { DrinkType } from "@/lib/drink-types";
+import { getDrinkPortionsForUser } from "@/lib/attendance";
 import { cn } from "@/lib/utils";
 
-const DRINK_TYPES: DrinkType[] = ["water", "soda", "beer", "fernet", "wine", "whisky", "jagger"];
+const DRINK_TYPES: DrinkType[] = ["water", "soda_zero", "soda_regular", "beer", "fernet", "wine", "whisky", "jagger"];
 
 type DrinkConfig = { drinkType: string; mlPerPersonPerDay: number };
 type DrinkPreference = { userId: string; drinkType: string; enabled: boolean; user: { id: string; name: string; email: string } };
+
+type AttendanceEntry = {
+  userId: string;
+  arrivalDate: string | null;
+  arrivalSlot: string | null;
+  departureDate: string | null;
+  departureSlot: string | null;
+  user: { id: string; name: string; email: string };
+};
 
 type Props = {
   juntadaId: string;
   currentUserId: string;
   configs: DrinkConfig[];
   preferences: DrinkPreference[];
-  attendance: { userId: string; arrivalDate: string | null; departureDate: string | null; user: { id: string; name: string; email: string } }[];
-  totalDays: number;
+  attendance: AttendanceEntry[];
+  dates: string[];
 };
 
-export function DrinksPanel({ juntadaId, currentUserId, configs, preferences, attendance, totalDays }: Props) {
+export function DrinksPanel({ juntadaId, currentUserId, configs, preferences, attendance, dates }: Props) {
   const [isPending, startTransition] = useTransition();
   const [editingConfig, setEditingConfig] = useState<DrinkType | null>(null);
   const [configValue, setConfigValue] = useState("");
@@ -53,14 +63,19 @@ export function DrinksPanel({ juntadaId, currentUserId, configs, preferences, at
     });
   }
 
-  // Calculate total for each drink based on preferences
+  // Calculate total for each drink weighting each person by their stay (2 portions per day: lunch + dinner)
   function calcTotal(drink: DrinkType): { ml: number; liters: string; buyers: string[] } {
-    const ml = getConfig(drink);
+    const mlPerDay = getConfig(drink);
     const buyers = preferences
       .filter((p) => p.drinkType === drink && p.enabled)
       .map((p) => p.user);
 
-    const totalMl = ml * buyers.length * totalDays;
+    const totalMl = buyers.reduce((sum, buyer) => {
+      const record = attendance.find((a) => a.userId === buyer.id);
+      const portions = record ? getDrinkPortionsForUser(record as any, dates) : 0;
+      return sum + (mlPerDay / 2) * portions;
+    }, 0);
+
     return {
       ml: totalMl,
       liters: (totalMl / 1000).toFixed(1),
@@ -102,7 +117,7 @@ export function DrinksPanel({ juntadaId, currentUserId, configs, preferences, at
       {/* Totals */}
       <div className="space-y-4">
         <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
-          Cantidades a comprar ({totalDays} día{totalDays !== 1 ? "s" : ""})
+          Cantidades a comprar (según estadía)
         </h3>
         <div className="space-y-2">
           {DRINK_TYPES.map((drink) => {

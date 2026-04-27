@@ -33,6 +33,7 @@ type Props = {
 };
 
 const SLOTS: Slot[] = ["morning", "noon", "afternoon", "night"];
+const SLOT_ORDER: Record<Slot, number> = { morning: 0, noon: 1, afternoon: 2, night: 3 };
 
 const STATUS_BADGE: Record<Status, React.ReactNode> = {
   confirmed: <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Confirmado</Badge>,
@@ -193,7 +194,11 @@ export function AttendancePanel({
           <p className="text-sm text-muted-foreground">Nadie se sumó todavía.</p>
         ) : (
           <div className="divide-y border rounded-lg">
-            {attendance.map((a) => (
+            {[...attendance].sort((a, b) => {
+              const aKey = a.arrivalDate ? `${a.arrivalDate}_${SLOT_ORDER[a.arrivalSlot ?? "night"]}` : "z";
+              const bKey = b.arrivalDate ? `${b.arrivalDate}_${SLOT_ORDER[b.arrivalSlot ?? "night"]}` : "z";
+              return aKey.localeCompare(bKey);
+            }).map((a) => (
               <div key={a.userId} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <p className="text-sm font-medium">{a.user.name || a.user.email}</p>

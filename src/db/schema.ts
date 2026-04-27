@@ -95,6 +95,7 @@ export const meal = sqliteTable("meal", {
   date: text("date").notNull(), // YYYY-MM-DD
   type: text("type", { enum: ["lunch", "dinner"] }).notNull(),
   description: text("description"),
+  vegetarianOption: text("vegetarian_option"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
@@ -119,7 +120,7 @@ export const drinkConfig = sqliteTable("drink_config", {
   id: text("id").primaryKey(),
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   drinkType: text("drink_type", {
-    enum: ["water", "soda", "beer", "fernet", "wine", "whisky", "jagger"],
+    enum: ["water", "soda_zero", "soda_regular", "beer", "fernet", "wine", "whisky", "jagger"],
   }).notNull(),
   mlPerPersonPerDay: integer("ml_per_person_per_day").notNull(),
 });
@@ -129,7 +130,7 @@ export const drinkPreference = sqliteTable("drink_preference", {
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   drinkType: text("drink_type", {
-    enum: ["water", "soda", "beer", "fernet", "wine", "whisky", "jagger"],
+    enum: ["water", "soda_zero", "soda_regular", "beer", "fernet", "wine", "whisky", "jagger"],
   }).notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 });
