@@ -122,7 +122,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             configs={drinkConfigs}
             preferences={drinkPreferences as any}
             attendance={juntada.attendance as any}
-            totalDays={totalDays}
+            dates={dates}
           />
         </TabsContent>
 

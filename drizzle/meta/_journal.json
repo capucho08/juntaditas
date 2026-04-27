@@ -15,6 +15,13 @@
       "when": 1777244678880,
       "tag": "0001_dry_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777256946496,
+      "tag": "0002_fair_carnage",
+      "breakpoints": true
     }
   ]
 }

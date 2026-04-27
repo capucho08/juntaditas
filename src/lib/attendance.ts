@@ -82,6 +82,45 @@ export function getPortionsForUser(
   return portions;
 }
 
+// Returns drink portions for a person based on meal attendance (lunch=noon, dinner=night)
+// Each day has 2 possible portions. The cutoff is meal time:
+//   - Lunch (noon, slot 1): counts if arrived by noon and departs at noon or later
+//   - Dinner (night, slot 3): counts if arrived by night and departs at night or later
+export function getDrinkPortionsForUser(
+  attendance: AttendanceRecord,
+  dates: string[]
+): number {
+  if (!attendance.arrivalDate || !attendance.departureDate || !attendance.arrivalSlot || !attendance.departureSlot) {
+    return 0;
+  }
+
+  let portions = 0;
+  const arrSlot = SLOT_INDEX[attendance.arrivalSlot];
+  const depSlot = SLOT_INDEX[attendance.departureSlot];
+
+  for (const date of dates) {
+    if (date < attendance.arrivalDate || date > attendance.departureDate) continue;
+
+    const isArrivalDay = date === attendance.arrivalDate;
+    const isDepartureDay = date === attendance.departureDate;
+
+    // Lunch: must arrive by noon (slot 1) and depart at noon or later
+    const atLunch =
+      (!isArrivalDay || arrSlot <= 1) &&
+      (!isDepartureDay || depSlot >= 1);
+
+    // Dinner: must arrive by night (slot 3) and depart at night or later
+    const atDinner =
+      (!isArrivalDay || arrSlot <= 3) &&
+      (!isDepartureDay || depSlot >= 3);
+
+    if (atLunch) portions++;
+    if (atDinner) portions++;
+  }
+
+  return portions;
+}
+
 // Returns number of nights a person is present (for house costs)
 export function getNightsForUser(
   attendance: AttendanceRecord,

@@ -1,8 +1,9 @@
-export type DrinkType = "water" | "soda" | "beer" | "fernet" | "wine" | "whisky" | "jagger";
+export type DrinkType = "water" | "soda_zero" | "soda_regular" | "beer" | "fernet" | "wine" | "whisky" | "jagger";
 
 export const DRINK_DEFAULTS: Record<DrinkType, number> = {
   water: 1500,
-  soda: 1500,
+  soda_zero: 1500,
+  soda_regular: 1500,
   beer: 500,
   fernet: 200,
   wine: 375,
@@ -12,7 +13,8 @@ export const DRINK_DEFAULTS: Record<DrinkType, number> = {
 
 export const DRINK_LABELS: Record<DrinkType, string> = {
   water: "Agua",
-  soda: "Refresco",
+  soda_zero: "Refresco Zero",
+  soda_regular: "Refresco Común",
   beer: "Cerveza",
   fernet: "Fernet",
   wine: "Vino",
@@ -22,7 +24,8 @@ export const DRINK_LABELS: Record<DrinkType, string> = {
 
 export const DRINK_UNITS: Record<DrinkType, string> = {
   water: "ml",
-  soda: "ml",
+  soda_zero: "ml",
+  soda_regular: "ml",
   beer: "ml",
   fernet: "ml",
   wine: "ml",
