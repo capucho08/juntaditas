@@ -15,7 +15,8 @@ import type { SupplyCategory } from "@/lib/supply-types";
 import { Plus, Trash2, Check, Pencil, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments"];
+const DISPLAY_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"];
+const EDITABLE_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments"];
 
 type SupplyItem = {
   id: string;
@@ -48,7 +49,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
   const [category, setCategory] = useState<SupplyCategory>("food");
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [unit, setUnit] = useState("");
+  const [unit, setUnit] = useState("unid");
   const [editing, setEditing] = useState<EditState | null>(null);
   const [collapsed, setCollapsed] = useState<Set<SupplyCategory>>(new Set());
 
@@ -66,7 +67,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
       await addSupplyItem({ juntadaId, category, name, quantity: quantity || undefined, unit: unit || undefined });
       setName("");
       setQuantity("");
-      setUnit("");
+      setUnit("unid");
       setOpen(false);
     });
   }
@@ -84,7 +85,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
       id: item.id,
       name: item.name,
       quantity: item.quantity ?? "",
-      unit: item.unit ?? "",
+      unit: item.unit ?? "unid",
       category: item.category as SupplyCategory,
     });
   }
@@ -101,7 +102,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
     });
   }
 
-  const grouped = CATEGORIES.reduce((acc, cat) => {
+  const grouped = DISPLAY_CATEGORIES.reduce((acc, cat) => {
     acc[cat] = items.filter((i) => i.category === cat);
     return acc;
   }, {} as Record<SupplyCategory, SupplyItem[]>);
@@ -128,7 +129,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
                   <Select value={category} onValueChange={(v) => v && setCategory(v as SupplyCategory)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
+                      {EDITABLE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -142,8 +143,16 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
                     <Input placeholder="2" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Unidad (opcional)</Label>
-                    <Input placeholder="kg, lts..." value={unit} onChange={(e) => setUnit(e.target.value)} />
+                    <Label>Unidad</Label>
+                    <Select value={unit} onValueChange={(v) => v && setUnit(v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unid">unid</SelectItem>
+                        <SelectItem value="gr">gr</SelectItem>
+                        <SelectItem value="kg">kg</SelectItem>
+                        <SelectItem value="l">l</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -155,7 +164,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
         </div>
       </div>
 
-      {CATEGORIES.map((cat) => {
+      {DISPLAY_CATEGORIES.map((cat) => {
         const catItems = grouped[cat];
         if (catItems.length === 0) return null;
         return (
@@ -195,16 +204,19 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
                           value={editing.quantity}
                           onChange={(e) => setEditing({ ...editing, quantity: e.target.value })}
                         />
-                        <Input
-                          className="h-7 text-sm w-16"
-                          placeholder="Unid."
-                          value={editing.unit}
-                          onChange={(e) => setEditing({ ...editing, unit: e.target.value })}
-                        />
+                        <Select value={editing.unit} onValueChange={(v) => v && setEditing({ ...editing, unit: v })}>
+                          <SelectTrigger size="sm" className="h-7 text-xs w-20"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unid">unid</SelectItem>
+                            <SelectItem value="gr">gr</SelectItem>
+                            <SelectItem value="kg">kg</SelectItem>
+                            <SelectItem value="l">l</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Select value={editing.category} onValueChange={(v) => v && setEditing({ ...editing, category: v as SupplyCategory })}>
                           <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
+                            {EDITABLE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{CATEGORY_LABELS[c]}</SelectItem>)}
                           </SelectContent>
                         </Select>
                         <Button size="sm" className="h-7 px-2" onClick={handleSaveEdit} disabled={isPending || !editing.name}>Listo</Button>

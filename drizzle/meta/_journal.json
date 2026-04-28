@@ -22,6 +22,13 @@
       "when": 1777256946496,
       "tag": "0002_fair_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1777259000000,
+      "tag": "0003_meal_ingredients",
+      "breakpoints": true
     }
   ]
 }

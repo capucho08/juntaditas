@@ -2,9 +2,9 @@
 
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { meal, mealCook, mealCost } from "@/db/schema";
+import { meal, mealCook, mealCost, mealIngredient, supplyItem } from "@/db/schema";
 import { generateId } from "@/lib/ids";
-import { requireSession } from "@/auth/server";
+import { requireSession, requireAdmin } from "@/auth/server";
 import { revalidatePath } from "next/cache";
 
 export async function getMealsForJuntada(juntadaId: string) {
@@ -13,6 +13,7 @@ export async function getMealsForJuntada(juntadaId: string) {
     with: {
       cooks: { with: { user: true } },
       costs: { with: { paidByUser: true } },
+      ingredients: true,
     },
   });
 }
@@ -87,5 +88,112 @@ export async function addMealCost(data: {
 export async function deleteMealCost(costId: string, juntadaId: string) {
   await requireSession();
   await db.delete(mealCost).where(eq(mealCost.id, costId));
+  revalidatePath(`/juntadas/${juntadaId}`);
+}
+
+// ── Meal Ingredients ──────────────────────────────────────────────────────────
+
+export async function addMealIngredient(data: {
+  mealId: string;
+  juntadaId: string;
+  name: string;
+  quantity?: string;
+  unit?: string;
+}) {
+  await requireSession();
+  await db.insert(mealIngredient).values({
+    id: generateId(),
+    mealId: data.mealId,
+    name: data.name,
+    quantity: data.quantity ?? null,
+    unit: data.unit ?? null,
+  });
+  revalidatePath(`/juntadas/${data.juntadaId}`);
+}
+
+export async function deleteMealIngredient(id: string, juntadaId: string) {
+  await requireSession();
+  await db.delete(mealIngredient).where(eq(mealIngredient.id, id));
+  revalidatePath(`/juntadas/${juntadaId}`);
+}
+
+export async function updateMealIngredient(data: {
+  id: string;
+  juntadaId: string;
+  name: string;
+  quantity?: string;
+  unit?: string;
+}) {
+  await requireSession();
+  await db
+    .update(mealIngredient)
+    .set({
+      name: data.name,
+      quantity: data.quantity || null,
+      unit: data.unit || null,
+    })
+    .where(eq(mealIngredient.id, data.id));
+  revalidatePath(`/juntadas/${data.juntadaId}`);
+}
+
+export async function exportIngredientsToSupplies(juntadaId: string) {
+  await requireAdmin();
+
+  const meals = await db.query.meal.findMany({
+    where: eq(meal.juntadaId, juntadaId),
+    with: { ingredients: true },
+  });
+
+  const allIngredients = meals.flatMap((m) => m.ingredients);
+  if (allIngredients.length === 0) return;
+
+  // Consolidate by (name case-insensitive, unit case-insensitive)
+  const consolidated = new Map<string, { name: string; quantity: number | null; unit: string | null; hasNonNumeric: boolean }>();
+
+  for (const ing of allIngredients) {
+    const key = `${ing.name.trim().toLowerCase()}|${(ing.unit ?? "").trim().toLowerCase()}`;
+    const existing = consolidated.get(key);
+    const qty = ing.quantity ? parseFloat(ing.quantity) : null;
+    const isNumeric = ing.quantity ? !isNaN(qty!) : false;
+
+    if (!existing) {
+      consolidated.set(key, {
+        name: ing.name.trim(),
+        quantity: isNumeric ? qty : null,
+        unit: ing.unit ?? null,
+        hasNonNumeric: !isNumeric && !!ing.quantity,
+      });
+    } else {
+      if (isNumeric && existing.quantity !== null) {
+        existing.quantity = existing.quantity + qty!;
+      } else if (isNumeric && existing.quantity === null) {
+        existing.quantity = qty;
+      } else {
+        existing.hasNonNumeric = true;
+      }
+    }
+  }
+
+  // Delete existing meal_ingredients supply items to avoid duplicates
+  await db.delete(supplyItem).where(
+    and(eq(supplyItem.juntadaId, juntadaId), eq(supplyItem.category, "meal_ingredients"))
+  );
+
+  // Insert consolidated items
+  const items = Array.from(consolidated.values());
+  if (items.length > 0) {
+    await db.insert(supplyItem).values(
+      items.map((item) => ({
+        id: generateId(),
+        juntadaId,
+        category: "meal_ingredients" as const,
+        name: item.name,
+        quantity: item.quantity !== null ? String(item.quantity) : undefined,
+        unit: item.unit ?? undefined,
+        checked: false,
+      }))
+    );
+  }
+
   revalidatePath(`/juntadas/${juntadaId}`);
 }

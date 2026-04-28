@@ -112,6 +112,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             juntadaId={id}
             dates={dates}
             attendance={juntada.attendance as any}
+            isAdmin={isAdmin}
           />
         </TabsContent>
 
