@@ -152,7 +152,7 @@ export const supplyItem = sqliteTable("supply_item", {
   id: text("id").primaryKey(),
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   category: text("category", {
-    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"],
+    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients", "picada"],
   }).notNull(),
   name: text("name").notNull(),
   quantity: text("quantity"),
@@ -199,7 +199,7 @@ export const supplyTemplate = sqliteTable("supply_template", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   category: text("category", {
-    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"],
+    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients", "picada"],
   }).notNull(),
   createdBy: text("created_by").notNull().references(() => user.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),

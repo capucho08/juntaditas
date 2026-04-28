@@ -15,8 +15,8 @@ import type { SupplyCategory } from "@/lib/supply-types";
 import { Plus, Trash2, Check, Pencil, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const DISPLAY_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"];
-const EDITABLE_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments"];
+const DISPLAY_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments", "picada", "meal_ingredients"];
+const EDITABLE_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments", "picada"];
 
 type SupplyItem = {
   id: string;
