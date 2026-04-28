@@ -113,6 +113,17 @@ export const mealCost = sqliteTable("meal_cost", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+// ─── Meal Ingredients ─────────────────────────────────────────────────────────
+
+export const mealIngredient = sqliteTable("meal_ingredient", {
+  id: text("id").primaryKey(),
+  mealId: text("meal_id").notNull().references(() => meal.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  quantity: text("quantity"),
+  unit: text("unit"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 // ─── Drinks ───────────────────────────────────────────────────────────────────
 
 // Default ml per person per day — stored per juntada (overrides global defaults)
@@ -141,7 +152,7 @@ export const supplyItem = sqliteTable("supply_item", {
   id: text("id").primaryKey(),
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   category: text("category", {
-    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments"],
+    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"],
   }).notNull(),
   name: text("name").notNull(),
   quantity: text("quantity"),
@@ -188,7 +199,7 @@ export const supplyTemplate = sqliteTable("supply_template", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   category: text("category", {
-    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments"],
+    enum: ["house", "food", "produce", "breakfast", "drinks", "condiments", "meal_ingredients"],
   }).notNull(),
   createdBy: text("created_by").notNull().references(() => user.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
@@ -257,6 +268,11 @@ export const mealRelations = relations(meal, ({ one, many }) => ({
   juntada: one(juntada, { fields: [meal.juntadaId], references: [juntada.id] }),
   cooks: many(mealCook),
   costs: many(mealCost),
+  ingredients: many(mealIngredient),
+}));
+
+export const mealIngredientRelations = relations(mealIngredient, ({ one }) => ({
+  meal: one(meal, { fields: [mealIngredient.mealId], references: [meal.id] }),
 }));
 
 export const mealCookRelations = relations(mealCook, ({ one }) => ({
@@ -344,3 +360,4 @@ export type BringTemplate = typeof bringTemplate.$inferSelect;
 export type BringTemplateItem = typeof bringTemplateItem.$inferSelect;
 export type SupplyTemplate = typeof supplyTemplate.$inferSelect;
 export type SupplyTemplateItem = typeof supplyTemplateItem.$inferSelect;
+export type MealIngredient = typeof mealIngredient.$inferSelect;

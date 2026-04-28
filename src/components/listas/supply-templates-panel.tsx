@@ -41,7 +41,7 @@ export function SupplyTemplatesPanel({ templates }: Props) {
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState("");
-  const [itemUnit, setItemUnit] = useState("");
+  const [itemUnit, setItemUnit] = useState("unid");
 
   function handleCreate() {
     if (!newName) return;
@@ -74,7 +74,7 @@ export function SupplyTemplatesPanel({ templates }: Props) {
       });
       setItemName("");
       setItemQty("");
-      setItemUnit("");
+      setItemUnit("unid");
       setAddingTo(null);
     });
   }
@@ -203,9 +203,17 @@ export function SupplyTemplatesPanel({ templates }: Props) {
                               onKeyDown={(e) => e.key === "Enter" && handleAddItem(t.id)}
                             />
                             <Input className="h-7 text-sm w-16" placeholder="Cant." value={itemQty} onChange={(e) => setItemQty(e.target.value)} />
-                            <Input className="h-7 text-sm w-16" placeholder="Unid." value={itemUnit} onChange={(e) => setItemUnit(e.target.value)} />
+                            <Select value={itemUnit} onValueChange={(v) => v && setItemUnit(v)}>
+                              <SelectTrigger size="sm" className="h-7 text-xs w-20"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unid">unid</SelectItem>
+                                <SelectItem value="gr">gr</SelectItem>
+                                <SelectItem value="kg">kg</SelectItem>
+                                <SelectItem value="l">l</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <Button size="sm" className="h-7" onClick={() => handleAddItem(t.id)} disabled={isPending || !itemName}>Listo</Button>
-                            <Button size="sm" variant="ghost" className="h-7" onClick={() => { setAddingTo(null); setItemName(""); setItemQty(""); setItemUnit(""); }}>×</Button>
+                            <Button size="sm" variant="ghost" className="h-7" onClick={() => { setAddingTo(null); setItemName(""); setItemQty(""); setItemUnit("unid"); }}>×</Button>
                           </div>
                         ) : (
                           <button

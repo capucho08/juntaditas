@@ -1,4 +1,4 @@
-export type SupplyCategory = "house" | "food" | "produce" | "breakfast" | "drinks" | "condiments";
+export type SupplyCategory = "house" | "food" | "produce" | "breakfast" | "drinks" | "condiments" | "meal_ingredients";
 
 export const CATEGORY_LABELS: Record<SupplyCategory, string> = {
   house: "Cosas de la casa",
@@ -7,4 +7,5 @@ export const CATEGORY_LABELS: Record<SupplyCategory, string> = {
   breakfast: "Desayuno / Merienda",
   drinks: "Bebidas",
   condiments: "Condimentos",
+  meal_ingredients: "Ingredientes Comidas",
 };

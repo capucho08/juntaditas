@@ -4,8 +4,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,18 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { upsertMeal, deleteMeal, addMealCost, deleteMealCost } from "@/db/queries/meals";
-import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { upsertMeal, deleteMeal, addMealCost, deleteMealCost, addMealIngredient, deleteMealIngredient, updateMealIngredient } from "@/db/queries/meals";
+import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen, ShoppingBasket, Pencil, Check, X, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Attendee = { id: string; name: string; email: string };
+
+type Ingredient = {
+  id: string;
+  name: string;
+  quantity: string | null;
+  unit: string | null;
+};
 
 type MealData = {
   id: string;
@@ -27,6 +33,7 @@ type MealData = {
   vegetarianOption: string | null;
   cooks: { user: Attendee }[];
   costs: { id: string; amount: number; description: string | null; paidByUser: Attendee }[];
+  ingredients: Ingredient[];
 } | null;
 
 type Props = {
@@ -51,6 +58,15 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
   );
   const [costAmount, setCostAmount] = useState("");
   const [costDesc, setCostDesc] = useState("");
+  const [ingName, setIngName] = useState("");
+  const [ingQty, setIngQty] = useState("");
+  const [ingUnit, setIngUnit] = useState("unid");
+
+  const [ingredientsOpen, setIngredientsOpen] = useState(true);
+  const [editingIngId, setEditingIngId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editQty, setEditQty] = useState("");
+  const [editUnit, setEditUnit] = useState("unid");
 
   const presentAttendees = attendees.filter((a) => presentUserIds.includes(a.id));
 
@@ -92,6 +108,53 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
   function handleDeleteCost(costId: string) {
     startTransition(async () => {
       await deleteMealCost(costId, juntadaId);
+    });
+  }
+
+  function handleAddIngredient() {
+    if (!meal || !ingName) return;
+    startTransition(async () => {
+      await addMealIngredient({
+        mealId: meal.id,
+        juntadaId,
+        name: ingName,
+        quantity: ingQty || undefined,
+        unit: ingUnit || undefined,
+      });
+      setIngName("");
+      setIngQty("");
+      setIngUnit("unid");
+    });
+  }
+
+  function handleDeleteIngredient(id: string) {
+    startTransition(async () => {
+      await deleteMealIngredient(id, juntadaId);
+    });
+  }
+
+  function handleStartEditIngredient(ing: Ingredient) {
+    setEditingIngId(ing.id);
+    setEditName(ing.name);
+    setEditQty(ing.quantity ?? "");
+    setEditUnit(ing.unit ?? "unid");
+  }
+
+  function handleCancelEditIngredient() {
+    setEditingIngId(null);
+  }
+
+  function handleUpdateIngredient() {
+    if (!editName) return;
+    startTransition(async () => {
+      await updateMealIngredient({
+        id: editingIngId!,
+        juntadaId,
+        name: editName,
+        quantity: editQty || undefined,
+        unit: editUnit || undefined,
+      });
+      setEditingIngId(null);
     });
   }
 
@@ -251,6 +314,132 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
                 </span>
               )}
             </span>
+          </div>
+
+          <Separator />
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => setIngredientsOpen((v) => !v)}
+              className="text-xs font-semibold text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors w-full text-left"
+            >
+              {ingredientsOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              <ShoppingBasket className="w-3 h-3" /> Ingredientes
+              {meal.ingredients.length > 0 && (
+                <span className="ml-auto font-normal opacity-60">{meal.ingredients.length}</span>
+              )}
+            </button>
+            {ingredientsOpen && (<>
+            {meal.ingredients.map((ing) =>
+              editingIngId === ing.id ? (
+                <div key={ing.id} className="flex items-center gap-1">
+                  <Input
+                    className="h-6 text-xs flex-1 px-2"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleUpdateIngredient();
+                      if (e.key === "Escape") handleCancelEditIngredient();
+                    }}
+                    autoFocus
+                  />
+                  <Input
+                    className="h-6 text-xs w-12 px-2"
+                    placeholder="Cant."
+                    value={editQty}
+                    onChange={(e) => setEditQty(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleUpdateIngredient();
+                      if (e.key === "Escape") handleCancelEditIngredient();
+                    }}
+                  />
+                  <Select value={editUnit} onValueChange={(v) => v && setEditUnit(v)}>
+                    <SelectTrigger size="sm" className="h-6 text-xs w-16 px-2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unid">unid</SelectItem>
+                      <SelectItem value="gr">gr</SelectItem>
+                      <SelectItem value="kg">kg</SelectItem>
+                      <SelectItem value="l">l</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <button
+                    onClick={handleUpdateIngredient}
+                    disabled={isPending || !editName}
+                    className="h-6 w-6 shrink-0 flex items-center justify-center rounded border border-border hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={handleCancelEditIngredient}
+                    className="h-6 w-6 shrink-0 flex items-center justify-center rounded border border-border hover:border-destructive hover:text-destructive transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div key={ing.id} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    {ing.name}
+                    {(ing.quantity || ing.unit) && (
+                      <span className="ml-1 opacity-70">({[ing.quantity, ing.unit].filter(Boolean).join(" ")})</span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => handleStartEditIngredient(ing)}
+                      disabled={isPending}
+                      className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteIngredient(ing.id)}
+                      disabled={isPending}
+                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+            <div className="flex items-center gap-1 pt-0.5">
+              <Input
+                className="h-6 text-xs flex-1 px-2"
+                placeholder="Agregar ingrediente..."
+                value={ingName}
+                onChange={(e) => setIngName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddIngredient()}
+              />
+              <Input
+                className="h-6 text-xs w-12 px-2"
+                placeholder="Cant."
+                value={ingQty}
+                onChange={(e) => setIngQty(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddIngredient()}
+              />
+              <Select value={ingUnit} onValueChange={(v) => v && setIngUnit(v)}>
+                <SelectTrigger size="sm" className="h-6 text-xs w-16 px-2">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unid">unid</SelectItem>
+                  <SelectItem value="gr">gr</SelectItem>
+                  <SelectItem value="kg">kg</SelectItem>
+                  <SelectItem value="l">l</SelectItem>
+                </SelectContent>
+              </Select>
+              <button
+                onClick={handleAddIngredient}
+                disabled={isPending || !ingName}
+                className="h-6 w-6 shrink-0 flex items-center justify-center rounded border border-border hover:border-primary hover:text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+            </>)}
           </div>
 
           {meal.costs.length > 0 && (

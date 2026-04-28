@@ -1,6 +1,7 @@
 import { getMealsForJuntada } from "@/db/queries/meals";
 import { getAttendeesForMeal } from "@/lib/attendance";
 import { MealCard } from "./meal-card";
+import { ExportIngredientsButton } from "./export-ingredients-button";
 import { formatDate } from "@/lib/dates";
 
 type AttendanceRecord = {
@@ -17,14 +18,22 @@ type Props = {
   juntadaId: string;
   dates: string[];
   attendance: AttendanceRecord[];
+  isAdmin: boolean;
 };
 
-export async function MealsPanel({ juntadaId, dates, attendance }: Props) {
+export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Props) {
   const meals = await getMealsForJuntada(juntadaId);
   const attendees = attendance.map((a) => a.user);
 
+  const hasIngredients = meals.some((m) => m.ingredients.length > 0);
+
   return (
     <div className="space-y-8">
+      {isAdmin && hasIngredients && (
+        <div className="flex justify-end">
+          <ExportIngredientsButton juntadaId={juntadaId} />
+        </div>
+      )}
       {dates.map((date) => {
         const lunchMeal = meals.find((m) => m.date === date && m.type === "lunch") ?? null;
         const dinnerMeal = meals.find((m) => m.date === date && m.type === "dinner") ?? null;
