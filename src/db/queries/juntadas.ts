@@ -26,6 +26,7 @@ export async function getJuntada(id: string) {
 export async function createJuntada(data: {
   title: string;
   location: string;
+  locationUrl?: string;
   dateStart: string;
   dateEnd: string;
   description?: string;
@@ -48,6 +49,7 @@ export async function updateJuntada(
   data: {
     title?: string;
     location?: string;
+    locationUrl?: string;
     dateStart?: string;
     dateEnd?: string;
     description?: string;

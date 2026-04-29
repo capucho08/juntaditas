@@ -13,6 +13,7 @@ type Props = {
     id: string;
     title: string;
     location: string;
+    locationUrl: string | null;
     dateStart: string;
     dateEnd: string;
     description: string | null;
@@ -33,6 +34,7 @@ export function JuntadaForm({ juntada }: Props) {
     const data = {
       title: (form.elements.namedItem("title") as HTMLInputElement).value,
       location: (form.elements.namedItem("location") as HTMLInputElement).value,
+      locationUrl: (form.elements.namedItem("locationUrl") as HTMLInputElement).value || undefined,
       dateStart: (form.elements.namedItem("dateStart") as HTMLInputElement).value,
       dateEnd: (form.elements.namedItem("dateEnd") as HTMLInputElement).value,
       description: (form.elements.namedItem("description") as HTMLTextAreaElement).value || undefined,
@@ -79,6 +81,17 @@ export function JuntadaForm({ juntada }: Props) {
           placeholder="Ej: La Paloma, Uruguay"
           defaultValue={juntada?.location}
           required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="locationUrl">Link de Google Maps (opcional)</Label>
+        <Input
+          id="locationUrl"
+          name="locationUrl"
+          type="url"
+          placeholder="https://maps.app.goo.gl/..."
+          defaultValue={juntada?.locationUrl ?? ""}
         />
       </div>
 

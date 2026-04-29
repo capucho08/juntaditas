@@ -29,6 +29,13 @@
       "when": 1777259000000,
       "tag": "0003_meal_ingredients",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1777350000000,
+      "tag": "0004_juntada_location_url",
+      "breakpoints": true
     }
   ]
 }

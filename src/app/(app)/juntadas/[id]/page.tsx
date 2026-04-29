@@ -56,10 +56,22 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             {isPast && <Badge variant="secondary">Pasada</Badge>}
           </div>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" />
-              {juntada.location}
-            </span>
+            {juntada.locationUrl ? (
+              <a
+                href={juntada.locationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                {juntada.location}
+              </a>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5" />
+                {juntada.location}
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" />
               {formatDate(juntada.dateStart)} → {formatDate(juntada.dateEnd)}
