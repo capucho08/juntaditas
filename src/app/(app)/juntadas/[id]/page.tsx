@@ -67,8 +67,12 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
                     href={juntada.locationUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium px-2 py-0.5 rounded-full border hover:bg-accent transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border hover:bg-accent transition-colors"
                   >
+                    <svg viewBox="0 0 92.3 132.3" className="w-3 h-3 shrink-0" aria-hidden="true">
+                      <path fill="#1a73e8" d="M46.2 0C20.7 0 0 20.7 0 46.2c0 35.5 46.2 86.1 46.2 86.1s46.2-50.6 46.2-86.1C92.3 20.7 71.6 0 46.2 0z"/>
+                      <circle fill="#fff" cx="46.2" cy="46.2" r="18.8"/>
+                    </svg>
                     Maps
                   </a>
                 )}
@@ -77,8 +81,15 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
                     href={juntada.wazeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs font-medium px-2 py-0.5 rounded-full border hover:bg-accent transition-colors"
+                    className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border hover:bg-accent transition-colors"
                   >
+                    <svg viewBox="0 0 64 64" className="w-3.5 h-3.5 shrink-0" aria-hidden="true">
+                      <ellipse fill="#33ccff" cx="32" cy="30" rx="28" ry="26"/>
+                      <path fill="#fff" d="M20 28c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4-1.8-4-4zm16 0c0-2.2 1.8-4 4-4s4 1.8 4 4-1.8 4-4 4-4-1.8-4-4z"/>
+                      <path fill="#fff" d="M24 38c2 3 6 5 8 5s6-2 8-5H24z"/>
+                      <circle fill="#33ccff" cx="48" cy="50" r="6"/>
+                      <circle fill="#33ccff" cx="28" cy="58" r="5"/>
+                    </svg>
                     Waze
                   </a>
                 )}
