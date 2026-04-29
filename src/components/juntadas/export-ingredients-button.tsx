@@ -29,7 +29,7 @@ export function ExportIngredientsButton({ juntadaId }: Props) {
   return (
     <Button variant="outline" size="sm" onClick={handleExport} disabled={isPending}>
       <Download className="w-4 h-4 mr-1.5" />
-      {isPending ? "Exportando..." : "Exportar al Surtido"}
+      {isPending ? "Exportando..." : "Exportar todo"}
     </Button>
   );
 }

@@ -8,11 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { addSupplyItem, toggleSupplyItem, deleteSupplyItem, updateSupplyItem } from "@/db/queries/supplies";
+import { addSupplyItem, toggleSupplyItem, deleteSupplyItem, updateSupplyItem, clearSupplyCategory } from "@/db/queries/supplies";
 import { ImportSupplyButton } from "./import-supply-button";
 import { CATEGORY_LABELS } from "@/lib/supply-types";
 import type { SupplyCategory } from "@/lib/supply-types";
-import { Plus, Trash2, Check, Pencil, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Check, Pencil, X, ChevronDown, ChevronRight, Eraser } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const DISPLAY_CATEGORIES: SupplyCategory[] = ["house", "food", "produce", "breakfast", "drinks", "condiments", "picada", "meal_ingredients"];
@@ -33,6 +33,7 @@ type Props = {
   juntadaId: string;
   items: SupplyItem[];
   supplyTemplates: SupplyTemplate[];
+  isAdmin: boolean;
 };
 
 type EditState = {
@@ -43,7 +44,7 @@ type EditState = {
   category: SupplyCategory;
 };
 
-export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
+export function SuppliesPanel({ juntadaId, items, supplyTemplates, isAdmin }: Props) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [category, setCategory] = useState<SupplyCategory>("food");
@@ -52,6 +53,7 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
   const [unit, setUnit] = useState("unid");
   const [editing, setEditing] = useState<EditState | null>(null);
   const [collapsed, setCollapsed] = useState<Set<SupplyCategory>>(new Set());
+  const [clearingCategory, setClearingCategory] = useState<SupplyCategory | null>(null);
 
   function toggleCollapse(cat: SupplyCategory) {
     setCollapsed((prev) => {
@@ -78,6 +80,14 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
 
   function handleDelete(id: string) {
     startTransition(async () => { await deleteSupplyItem(id, juntadaId); });
+  }
+
+  function handleClearCategory() {
+    if (!clearingCategory) return;
+    startTransition(async () => {
+      await clearSupplyCategory(juntadaId, clearingCategory);
+      setClearingCategory(null);
+    });
   }
 
   function startEdit(item: SupplyItem) {
@@ -169,21 +179,32 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
         if (catItems.length === 0) return null;
         return (
           <div key={cat} className="space-y-2">
-            <button
-              onClick={() => toggleCollapse(cat)}
-              className="flex items-center gap-1.5 w-full text-left"
-            >
-              {collapsed.has(cat)
-                ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-              }
-              <h3 className="text-sm font-semibold text-muted-foreground">
-                {CATEGORY_LABELS[cat]}
-              </h3>
-              <span className="text-xs text-muted-foreground ml-1">
-                ({catItems.filter((i) => i.checked).length}/{catItems.length})
-              </span>
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => toggleCollapse(cat)}
+                className="flex items-center gap-1.5 flex-1 text-left min-w-0"
+              >
+                {collapsed.has(cat)
+                  ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                }
+                <h3 className="text-sm font-semibold text-muted-foreground">
+                  {CATEGORY_LABELS[cat]}
+                </h3>
+                <span className="text-xs text-muted-foreground ml-1">
+                  ({catItems.filter((i) => i.checked).length}/{catItems.length})
+                </span>
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => setClearingCategory(cat)}
+                  title="Borrar toda la lista"
+                  className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded shrink-0"
+                >
+                  <Eraser className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
             {!collapsed.has(cat) && <div className="divide-y border rounded-lg">
               {catItems.map((item) => {
                 const isEditing = editing?.id === item.id;
@@ -265,6 +286,29 @@ export function SuppliesPanel({ juntadaId, items, supplyTemplates }: Props) {
           No hay items en el surtido todavía.
         </p>
       )}
+
+      <Dialog open={clearingCategory !== null} onOpenChange={(v) => !v && setClearingCategory(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Borrar toda la lista?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se van a eliminar todos los items de{" "}
+            <span className="font-medium text-foreground">
+              {clearingCategory ? CATEGORY_LABELS[clearingCategory] : ""}
+            </span>
+            . Esta acción no se puede deshacer.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClearingCategory(null)} disabled={isPending}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleClearCategory} disabled={isPending}>
+              {isPending ? "Borrando..." : "Borrar todo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

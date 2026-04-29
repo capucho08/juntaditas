@@ -136,21 +136,12 @@ export async function updateMealIngredient(data: {
   revalidatePath(`/juntadas/${data.juntadaId}`);
 }
 
-export async function exportIngredientsToSupplies(juntadaId: string) {
-  await requireAdmin();
-
-  const meals = await db.query.meal.findMany({
-    where: eq(meal.juntadaId, juntadaId),
-    with: { ingredients: true },
-  });
-
-  const allIngredients = meals.flatMap((m) => m.ingredients);
-  if (allIngredients.length === 0) return;
-
-  // Consolidate by (name case-insensitive, unit case-insensitive)
+function consolidateIngredients(
+  ingredients: { name: string; quantity: string | null; unit: string | null }[]
+) {
   const consolidated = new Map<string, { name: string; quantity: number | null; unit: string | null; hasNonNumeric: boolean }>();
 
-  for (const ing of allIngredients) {
+  for (const ing of ingredients) {
     const key = `${ing.name.trim().toLowerCase()}|${(ing.unit ?? "").trim().toLowerCase()}`;
     const existing = consolidated.get(key);
     const qty = ing.quantity ? parseFloat(ing.quantity) : null;
@@ -174,16 +165,87 @@ export async function exportIngredientsToSupplies(juntadaId: string) {
     }
   }
 
-  // Delete existing meal_ingredients supply items to avoid duplicates
+  return Array.from(consolidated.values());
+}
+
+async function replaceSupplyIngredients(juntadaId: string, items: { name: string; quantity: number | null; unit: string | null }[]) {
   await db.delete(supplyItem).where(
     and(eq(supplyItem.juntadaId, juntadaId), eq(supplyItem.category, "meal_ingredients"))
   );
 
-  // Insert consolidated items
-  const items = Array.from(consolidated.values());
   if (items.length > 0) {
     await db.insert(supplyItem).values(
       items.map((item) => ({
+        id: generateId(),
+        juntadaId,
+        category: "meal_ingredients" as const,
+        name: item.name,
+        quantity: item.quantity !== null ? String(item.quantity) : undefined,
+        unit: item.unit ?? undefined,
+        checked: false,
+      }))
+    );
+  }
+}
+
+export async function exportIngredientsToSupplies(juntadaId: string) {
+  await requireAdmin();
+
+  const meals = await db.query.meal.findMany({
+    where: eq(meal.juntadaId, juntadaId),
+    with: { ingredients: true },
+  });
+
+  const allIngredients = meals.flatMap((m) => m.ingredients);
+  if (allIngredients.length === 0) return;
+
+  const items = consolidateIngredients(allIngredients);
+  await replaceSupplyIngredients(juntadaId, items);
+  revalidatePath(`/juntadas/${juntadaId}`);
+}
+
+export async function exportSingleMealIngredients(mealId: string, juntadaId: string) {
+  await requireAdmin();
+
+  const mealData = await db.query.meal.findFirst({
+    where: eq(meal.id, mealId),
+    with: { ingredients: true },
+  });
+
+  if (!mealData || mealData.ingredients.length === 0) return;
+
+  const mealItems = consolidateIngredients(mealData.ingredients);
+
+  const existing = await db.query.supplyItem.findMany({
+    where: and(eq(supplyItem.juntadaId, juntadaId), eq(supplyItem.category, "meal_ingredients")),
+  });
+
+  const toInsert: typeof mealItems = [];
+
+  for (const ing of mealItems) {
+    const key = `${ing.name.trim().toLowerCase()}|${(ing.unit ?? "").trim().toLowerCase()}`;
+    const match = existing.find(
+      (e) => `${e.name.trim().toLowerCase()}|${(e.unit ?? "").trim().toLowerCase()}` === key
+    );
+
+    if (match) {
+      const existingQty = match.quantity ? parseFloat(match.quantity) : null;
+      const existingNumeric = match.quantity !== null && existingQty !== null && !isNaN(existingQty);
+      const newQty =
+        ing.quantity !== null && existingNumeric && existingQty !== null
+          ? String(existingQty + ing.quantity)
+          : ing.quantity !== null
+          ? String(ing.quantity)
+          : match.quantity;
+      await db.update(supplyItem).set({ quantity: newQty }).where(eq(supplyItem.id, match.id));
+    } else {
+      toInsert.push(ing);
+    }
+  }
+
+  if (toInsert.length > 0) {
+    await db.insert(supplyItem).values(
+      toInsert.map((item) => ({
         id: generateId(),
         juntadaId,
         category: "meal_ingredients" as const,

@@ -53,6 +53,7 @@ export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Prop
                 meal={lunchMeal}
                 attendees={attendees}
                 presentUserIds={lunchAttendeeIds}
+                isAdmin={isAdmin}
               />
               <MealCard
                 juntadaId={juntadaId}
@@ -62,6 +63,7 @@ export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Prop
                 meal={dinnerMeal}
                 attendees={attendees}
                 presentUserIds={dinnerAttendeeIds}
+                isAdmin={isAdmin}
               />
             </div>
           </div>

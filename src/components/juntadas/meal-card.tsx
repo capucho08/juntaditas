@@ -14,8 +14,9 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { upsertMeal, deleteMeal, addMealCost, deleteMealCost, addMealIngredient, deleteMealIngredient, updateMealIngredient } from "@/db/queries/meals";
-import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen, ShoppingBasket, Pencil, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { upsertMeal, deleteMeal, addMealCost, deleteMealCost, addMealIngredient, deleteMealIngredient, updateMealIngredient, exportSingleMealIngredients } from "@/db/queries/meals";
+import { toast } from "sonner";
+import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen, ShoppingBasket, Pencil, Check, X, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Attendee = { id: string; name: string; email: string };
@@ -44,9 +45,10 @@ type Props = {
   meal: MealData;
   attendees: Attendee[];
   presentUserIds: string[];
+  isAdmin: boolean;
 };
 
-export function MealCard({ juntadaId, date, type, label, meal, attendees, presentUserIds }: Props) {
+export function MealCard({ juntadaId, date, type, label, meal, attendees, presentUserIds, isAdmin }: Props) {
   const [open, setOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -111,6 +113,18 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
     });
   }
 
+  function handleExportMeal() {
+    if (!meal) return;
+    startTransition(async () => {
+      try {
+        await exportSingleMealIngredients(meal.id, juntadaId);
+        toast.success(`Ingredientes de ${label} exportados al Surtido`);
+      } catch {
+        toast.error("Error al exportar ingredientes");
+      }
+    });
+  }
+
   function handleAddIngredient() {
     if (!meal || !ingName) return;
     startTransition(async () => {
@@ -167,6 +181,19 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
         <div className="flex gap-2">
           {meal && (
             <>
+              {/* Export meal ingredients */}
+              {isAdmin && meal.ingredients.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportMeal}
+                  disabled={isPending}
+                  title="Exportar ingredientes al Surtido"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+              )}
+
               {/* Add cost */}
               <Dialog open={costOpen} onOpenChange={setCostOpen}>
                 <DialogTrigger

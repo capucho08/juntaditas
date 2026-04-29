@@ -128,7 +128,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
         </TabsContent>
 
         <TabsContent value="surtido" className="pt-4">
-          <SuppliesPanel juntadaId={id} items={supplyItems} supplyTemplates={supplyTemplates as any} />
+          <SuppliesPanel juntadaId={id} items={supplyItems} supplyTemplates={supplyTemplates as any} isAdmin={isAdmin} />
         </TabsContent>
 
         <TabsContent value="llevar" className="pt-4">

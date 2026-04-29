@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { supplyItem, thingToBring, thingResponsible } from "@/db/schema";
 import { generateId } from "@/lib/ids";
-import { requireSession } from "@/auth/server";
+import { requireSession, requireAdmin } from "@/auth/server";
 import { revalidatePath } from "next/cache";
 import type { SupplyCategory } from "@/lib/supply-types";
 
@@ -46,6 +46,14 @@ export async function updateSupplyItem(
 export async function deleteSupplyItem(id: string, juntadaId: string) {
   await requireSession();
   await db.delete(supplyItem).where(eq(supplyItem.id, id));
+  revalidatePath(`/juntadas/${juntadaId}`);
+}
+
+export async function clearSupplyCategory(juntadaId: string, category: SupplyCategory) {
+  await requireAdmin();
+  await db.delete(supplyItem).where(
+    and(eq(supplyItem.juntadaId, juntadaId), eq(supplyItem.category, category))
+  );
   revalidatePath(`/juntadas/${juntadaId}`);
 }
 
