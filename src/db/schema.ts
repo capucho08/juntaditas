@@ -63,6 +63,7 @@ export const juntada = sqliteTable("juntada", {
   title: text("title").notNull(),
   location: text("location").notNull(),
   locationUrl: text("location_url"),
+  wazeUrl: text("waze_url"),
   dateStart: text("date_start").notNull(), // ISO date string YYYY-MM-DD
   dateEnd: text("date_end").notNull(),
   description: text("description"),

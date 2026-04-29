@@ -27,6 +27,7 @@ export async function createJuntada(data: {
   title: string;
   location: string;
   locationUrl?: string;
+  wazeUrl?: string;
   dateStart: string;
   dateEnd: string;
   description?: string;
@@ -50,6 +51,7 @@ export async function updateJuntada(
     title?: string;
     location?: string;
     locationUrl?: string;
+    wazeUrl?: string;
     dateStart?: string;
     dateEnd?: string;
     description?: string;

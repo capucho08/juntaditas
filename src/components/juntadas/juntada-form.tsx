@@ -14,6 +14,7 @@ type Props = {
     title: string;
     location: string;
     locationUrl: string | null;
+    wazeUrl: string | null;
     dateStart: string;
     dateEnd: string;
     description: string | null;
@@ -35,6 +36,7 @@ export function JuntadaForm({ juntada }: Props) {
       title: (form.elements.namedItem("title") as HTMLInputElement).value,
       location: (form.elements.namedItem("location") as HTMLInputElement).value,
       locationUrl: (form.elements.namedItem("locationUrl") as HTMLInputElement).value || undefined,
+      wazeUrl: (form.elements.namedItem("wazeUrl") as HTMLInputElement).value || undefined,
       dateStart: (form.elements.namedItem("dateStart") as HTMLInputElement).value,
       dateEnd: (form.elements.namedItem("dateEnd") as HTMLInputElement).value,
       description: (form.elements.namedItem("description") as HTMLTextAreaElement).value || undefined,
@@ -84,15 +86,27 @@ export function JuntadaForm({ juntada }: Props) {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="locationUrl">Link de Google Maps (opcional)</Label>
-        <Input
-          id="locationUrl"
-          name="locationUrl"
-          type="url"
-          placeholder="https://maps.app.goo.gl/..."
-          defaultValue={juntada?.locationUrl ?? ""}
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="locationUrl">Google Maps (opcional)</Label>
+          <Input
+            id="locationUrl"
+            name="locationUrl"
+            type="url"
+            placeholder="https://maps.app.goo.gl/..."
+            defaultValue={juntada?.locationUrl ?? ""}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="wazeUrl">Waze (opcional)</Label>
+          <Input
+            id="wazeUrl"
+            name="wazeUrl"
+            type="url"
+            placeholder="https://waze.com/ul?..."
+            defaultValue={juntada?.wazeUrl ?? ""}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
