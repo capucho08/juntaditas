@@ -14,7 +14,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { upsertMeal, deleteMeal, addMealCost, deleteMealCost, addMealIngredient, deleteMealIngredient, updateMealIngredient, exportSingleMealIngredients } from "@/db/queries/meals";
+import { upsertMeal, deleteMeal, addMealCosts, deleteMealCost, addMealIngredient, deleteMealIngredient, updateMealIngredient, exportSingleMealIngredients } from "@/db/queries/meals";
 import { toast } from "sonner";
 import { ChefHat, Plus, Trash2, DollarSign, Users, LeafyGreen, ShoppingBasket, Pencil, Check, X, ChevronDown, ChevronRight, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,8 @@ type MealData = {
   ingredients: Ingredient[];
 } | null;
 
+type CostRow = { amount: string; description: string; paidBy: string };
+
 type Props = {
   juntadaId: string;
   date: string;
@@ -46,9 +48,10 @@ type Props = {
   attendees: Attendee[];
   presentUserIds: string[];
   isAdmin: boolean;
+  currentUserId: string;
 };
 
-export function MealCard({ juntadaId, date, type, label, meal, attendees, presentUserIds, isAdmin }: Props) {
+export function MealCard({ juntadaId, date, type, label, meal, attendees, presentUserIds, isAdmin, currentUserId }: Props) {
   const [open, setOpen] = useState(false);
   const [costOpen, setCostOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -58,8 +61,7 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
   const [selectedCooks, setSelectedCooks] = useState<string[]>(
     meal?.cooks.map((c) => c.user.id) ?? []
   );
-  const [costAmount, setCostAmount] = useState("");
-  const [costDesc, setCostDesc] = useState("");
+  const [costRows, setCostRows] = useState<CostRow[]>([{ amount: "", description: "", paidBy: currentUserId }]);
   const [ingName, setIngName] = useState("");
   const [ingQty, setIngQty] = useState("");
   const [ingUnit, setIngUnit] = useState("unid");
@@ -92,17 +94,33 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
     });
   }
 
-  function handleAddCost() {
-    if (!meal || !costAmount) return;
+  function addCostRow() {
+    setCostRows((prev) => [...prev, { amount: "", description: "", paidBy: currentUserId }]);
+  }
+
+  function removeCostRow(idx: number) {
+    setCostRows((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateCostRow(idx: number, field: keyof CostRow, value: string) {
+    setCostRows((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+
+  function handleAddCosts() {
+    if (!meal) return;
+    const valid = costRows.filter((r) => r.amount && parseFloat(r.amount) > 0 && r.paidBy);
+    if (valid.length === 0) return;
     startTransition(async () => {
-      await addMealCost({
+      await addMealCosts({
         mealId: meal.id,
         juntadaId,
-        amount: parseFloat(costAmount),
-        description: costDesc || undefined,
+        costs: valid.map((r) => ({
+          amount: parseFloat(r.amount),
+          description: r.description || undefined,
+          paidBy: r.paidBy,
+        })),
       });
-      setCostAmount("");
-      setCostDesc("");
+      setCostRows([{ amount: "", description: "", paidBy: currentUserId }]);
       setCostOpen(false);
     });
   }
@@ -195,7 +213,10 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
               )}
 
               {/* Add cost */}
-              <Dialog open={costOpen} onOpenChange={setCostOpen}>
+              <Dialog open={costOpen} onOpenChange={(v) => {
+                setCostOpen(v);
+                if (v) setCostRows([{ amount: "", description: "", paidBy: currentUserId }]);
+              }}>
                 <DialogTrigger
                   render={
                     <Button variant="ghost" size="sm">
@@ -205,35 +226,65 @@ export function MealCard({ juntadaId, date, type, label, meal, attendees, presen
                 />
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Agregar costo — {label}</DialogTitle>
+                    <DialogTitle>Agregar costos — {label}</DialogTitle>
                   </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Monto ($)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={costAmount}
-                        onChange={(e) => setCostAmount(e.target.value)}
-                      />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[5rem_1fr_8rem_1.5rem] gap-2 text-xs text-muted-foreground px-0.5">
+                      <span>Monto ($)</span>
+                      <span>Descripción</span>
+                      <span>Pagó</span>
+                      <span />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Descripción (opcional)</Label>
-                      <Input
-                        placeholder="Ej: verduras del almuerzo"
-                        value={costDesc}
-                        onChange={(e) => setCostDesc(e.target.value)}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Se registrará a tu nombre. Se divide entre {presentAttendees.length} persona{presentAttendees.length !== 1 ? "s" : ""}.
-                    </p>
+                    {costRows.map((row, idx) => (
+                      <div key={idx} className="grid grid-cols-[5rem_1fr_8rem_1.5rem] gap-2 items-center">
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={row.amount}
+                          onChange={(e) => updateCostRow(idx, "amount", e.target.value)}
+                        />
+                        <Input
+                          placeholder="opcional"
+                          value={row.description}
+                          onChange={(e) => updateCostRow(idx, "description", e.target.value)}
+                        />
+                        <Select value={row.paidBy} onValueChange={(v) => v && updateCostRow(idx, "paidBy", v)}>
+                          <SelectTrigger>
+                            <SelectValue>
+                              {(() => { const a = attendees.find((a) => a.id === row.paidBy); return a?.name || a?.email.split("@")[0] || ""; })()}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {attendees.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.name || a.email.split("@")[0]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {costRows.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeCostRow(idx)}
+                            className="text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : <span />}
+                      </div>
+                    ))}
+                    <Button variant="outline" size="sm" onClick={addCostRow}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Agregar otro
+                    </Button>
                   </div>
                   <DialogFooter>
-                    <Button onClick={handleAddCost} disabled={isPending || !costAmount}>
-                      Agregar
+                    <Button
+                      onClick={handleAddCosts}
+                      disabled={isPending || !costRows.some((r) => r.amount && parseFloat(r.amount) > 0)}
+                    >
+                      Guardar
                     </Button>
                   </DialogFooter>
                 </DialogContent>

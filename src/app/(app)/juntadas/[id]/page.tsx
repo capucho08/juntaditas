@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getJuntada } from "@/db/queries/juntadas";
 import { getExpenses } from "@/db/queries/expenses";
 import { getMealsForJuntada } from "@/db/queries/meals";
+import { getJuntadaPersonalItems } from "@/db/queries/juntada-personal-items";
+import { getMyPersonalLists } from "@/db/queries/personal-lists";
 import { getBringTemplates } from "@/db/queries/bring-templates";
 import { getSupplyTemplates } from "@/db/queries/supply-templates";
 import { getSupplyItems, getThingsToBring } from "@/db/queries/supplies";
@@ -17,10 +19,11 @@ import { MealsPanel } from "@/components/juntadas/meals-panel";
 import { DrinksPanel } from "@/components/juntadas/drinks-panel";
 import { SuppliesPanel } from "@/components/juntadas/supplies-panel";
 import { ThingsPanel } from "@/components/juntadas/things-panel";
+import { PersonalItemsPanel } from "@/components/juntadas/personal-items-panel";
 import { ExpensesPanel } from "@/components/juntadas/expenses-panel";
 import { DeleteJuntadaButton } from "@/components/juntadas/delete-juntada-button";
 import { formatDate, getDatesInRange, getNights } from "@/lib/dates";
-import { MapPin, Calendar, Pencil } from "lucide-react";
+import { MapPin, Calendar, Pencil, Users, Utensils, ListChecks, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function JuntadaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,7 +31,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
   const [juntada, session] = await Promise.all([getJuntada(id), getSession()]);
   if (!juntada || !session) notFound();
 
-  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences, meals, templates, supplyTemplates] = await Promise.all([
+  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences, meals, templates, supplyTemplates, personalItems, myPersonalLists] = await Promise.all([
     getExpenses(id),
     getSupplyItems(id),
     getThingsToBring(id),
@@ -37,6 +40,8 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
     getMealsForJuntada(id),
     getBringTemplates(),
     getSupplyTemplates(),
+    getJuntadaPersonalItems(id),
+    getMyPersonalLists(),
   ]);
 
   const isAdmin = session.user.role === "admin";
@@ -121,17 +126,29 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
       <Separator />
 
       {/* Tabs */}
-      <Tabs defaultValue="asistencia">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
-          <TabsTrigger value="comidas">Comidas</TabsTrigger>
-          <TabsTrigger value="bebidas">Bebidas</TabsTrigger>
-          <TabsTrigger value="surtido">Surtido</TabsTrigger>
-          <TabsTrigger value="llevar">A llevar</TabsTrigger>
-          <TabsTrigger value="gastos">Gastos</TabsTrigger>
+      <Tabs defaultValue="quienes">
+        {/* 4-tab bar: icon + label */}
+        <TabsList className="w-full h-auto gap-0.5 p-1">
+          <TabsTrigger value="quienes" className="flex-col py-2.5 gap-1 h-auto">
+            <Users className="w-[18px] h-[18px]" />
+            <span className="text-[11px] leading-none font-medium">Quiénes</span>
+          </TabsTrigger>
+          <TabsTrigger value="comidas" className="flex-col py-2.5 gap-1 h-auto">
+            <Utensils className="w-[18px] h-[18px]" />
+            <span className="text-[11px] leading-none font-medium">Comidas</span>
+          </TabsTrigger>
+          <TabsTrigger value="listas" className="flex-col py-2.5 gap-1 h-auto">
+            <ListChecks className="w-[18px] h-[18px]" />
+            <span className="text-[11px] leading-none font-medium">Listas</span>
+          </TabsTrigger>
+          <TabsTrigger value="gastos" className="flex-col py-2.5 gap-1 h-auto">
+            <Receipt className="w-[18px] h-[18px]" />
+            <span className="text-[11px] leading-none font-medium">Gastos</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="asistencia" className="pt-4">
+        {/* Quiénes */}
+        <TabsContent value="quienes" className="pt-4">
           <AttendancePanel
             juntadaId={id}
             dateStart={juntada.dateStart}
@@ -142,39 +159,67 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
           />
         </TabsContent>
 
+        {/* Comidas → sub-tabs Comidas / Bebidas */}
         <TabsContent value="comidas" className="pt-4">
-          <MealsPanel
-            juntadaId={id}
-            dates={dates}
-            attendance={juntada.attendance as any}
-            isAdmin={isAdmin}
-          />
+          <Tabs defaultValue="platos">
+            <TabsList variant="line" className="w-full border-b mb-5">
+              <TabsTrigger value="platos">Comidas</TabsTrigger>
+              <TabsTrigger value="bebidas">Bebidas</TabsTrigger>
+            </TabsList>
+            <TabsContent value="platos">
+              <MealsPanel
+                juntadaId={id}
+                dates={dates}
+                attendance={juntada.attendance as any}
+                isAdmin={isAdmin}
+                currentUserId={session.user.id}
+              />
+            </TabsContent>
+            <TabsContent value="bebidas">
+              <DrinksPanel
+                juntadaId={id}
+                currentUserId={session.user.id}
+                configs={drinkConfigs}
+                preferences={drinkPreferences as any}
+                attendance={juntada.attendance as any}
+                dates={dates}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="bebidas" className="pt-4">
-          <DrinksPanel
-            juntadaId={id}
-            currentUserId={session.user.id}
-            configs={drinkConfigs}
-            preferences={drinkPreferences as any}
-            attendance={juntada.attendance as any}
-            dates={dates}
-          />
+        {/* Listas → sub-tabs Surtido / A llevar / Personal */}
+        <TabsContent value="listas" className="pt-4">
+          <Tabs defaultValue="surtido">
+            <TabsList variant="line" className="w-full border-b mb-5">
+              <TabsTrigger value="surtido">Surtido</TabsTrigger>
+              <TabsTrigger value="llevar">A llevar</TabsTrigger>
+              <TabsTrigger value="personal">Personal</TabsTrigger>
+            </TabsList>
+            <TabsContent value="surtido">
+              <SuppliesPanel juntadaId={id} items={supplyItems} supplyTemplates={supplyTemplates as any} isAdmin={isAdmin} />
+            </TabsContent>
+            <TabsContent value="llevar">
+              <ThingsPanel
+                juntadaId={id}
+                things={things as any}
+                attendees={attendees as any}
+                templates={templates as any}
+              />
+            </TabsContent>
+            <TabsContent value="personal">
+              <PersonalItemsPanel
+                juntadaId={id}
+                currentUserId={session.user.id}
+                attendees={attendees as any}
+                items={personalItems as any}
+                myLists={myPersonalLists as any}
+              />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
-        <TabsContent value="surtido" className="pt-4">
-          <SuppliesPanel juntadaId={id} items={supplyItems} supplyTemplates={supplyTemplates as any} isAdmin={isAdmin} />
-        </TabsContent>
-
-        <TabsContent value="llevar" className="pt-4">
-          <ThingsPanel
-            juntadaId={id}
-            things={things as any}
-            attendees={attendees as any}
-            templates={templates as any}
-          />
-        </TabsContent>
-
+        {/* Gastos */}
         <TabsContent value="gastos" className="pt-4">
           <ExpensesPanel
             juntadaId={id}

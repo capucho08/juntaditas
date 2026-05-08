@@ -13,6 +13,7 @@ type AttendanceRecord = {
 type ExpenseRecord = {
   id: string;
   type: string;
+  splitMethod?: "linear" | "portions" | null;
   amount: number;
   currency: "UYU" | "USD";
   paidBy: string;
@@ -65,21 +66,32 @@ export function calculateSplit(
             .map((n) => ({ userId: n.userId, amount: (exp.amount * n.nights) / totalNights }));
         }
         case "general": {
-          const portionCounts = attendance.map((a) => ({
-            userId: a.userId,
-            portions: getPortionsForUser(a, dates),
-          }));
-          const totalPortions = portionCounts.reduce((s, p) => s + p.portions, 0);
-          if (totalPortions === 0) return null;
-          return portionCounts
-            .filter((p) => p.portions > 0)
-            .map((p) => ({ userId: p.userId, amount: (exp.amount * p.portions) / totalPortions }));
+          const method = exp.splitMethod ?? "portions";
+          const pool = exp.participants.length > 0
+            ? attendance.filter((a) => exp.participants.some((p) => p.userId === a.userId))
+            : attendance;
+          if (pool.length === 0) return null;
+          if (method === "linear") {
+            const share = exp.amount / pool.length;
+            return pool.map((a) => ({ userId: a.userId, amount: share }));
+          } else {
+            const portionCounts = pool.map((a) => ({
+              userId: a.userId,
+              portions: getPortionsForUser(a, dates),
+            }));
+            const totalPortions = portionCounts.reduce((s, p) => s + p.portions, 0);
+            if (totalPortions === 0) return null;
+            return portionCounts
+              .filter((p) => p.portions > 0)
+              .map((p) => ({ userId: p.userId, amount: (exp.amount * p.portions) / totalPortions }));
+          }
         }
         case "meal": {
           if (attendance.length === 0) return null;
           return attendance.map((a) => ({ userId: a.userId, amount: exp.amount / attendance.length }));
         }
         case "custom": {
+          // legacy: equal split among explicit participants
           const participants = exp.participants.map((p) => p.userId);
           if (participants.length === 0) return null;
           return participants.map((userId) => ({ userId, amount: exp.amount / participants.length }));
@@ -118,6 +130,55 @@ export function calculateSplit(
   return result;
 }
 
+export function calculateSimplifiedSplit(split: SplitResult[]): SplitResult[] {
+  const result: SplitResult[] = [];
+
+  for (const currency of ["UYU", "USD"] as const) {
+    const entries = split.filter((s) => s.currency === currency);
+    if (entries.length === 0) continue;
+
+    // Net balance per person: positive = creditor, negative = debtor
+    const balance: Record<string, number> = {};
+    for (const s of entries) {
+      balance[s.userId] = (balance[s.userId] ?? 0) - s.amount;
+      balance[s.owes] = (balance[s.owes] ?? 0) + s.amount;
+    }
+
+    const debtors = Object.entries(balance)
+      .filter(([, b]) => b < -0.01)
+      .map(([id, b]) => ({ id, amount: -b }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const creditors = Object.entries(balance)
+      .filter(([, b]) => b > 0.01)
+      .map(([id, b]) => ({ id, amount: b }))
+      .sort((a, b) => b.amount - a.amount);
+
+    let i = 0, j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const debtor = debtors[i];
+      const creditor = creditors[j];
+      const payment = Math.min(debtor.amount, creditor.amount);
+
+      if (payment > 0.01) {
+        result.push({
+          userId: debtor.id,
+          owes: creditor.id,
+          amount: Math.round(payment * 100) / 100,
+          currency,
+        });
+      }
+
+      debtor.amount -= payment;
+      creditor.amount -= payment;
+      if (debtor.amount < 0.01) i++;
+      if (creditor.amount < 0.01) j++;
+    }
+  }
+
+  return result;
+}
+
 export type ExpenseShare = { userId: string; amount: number };
 
 export function calculateExpenseShares(
@@ -138,15 +199,25 @@ export function calculateExpenseShares(
         .map((n) => ({ userId: n.userId, amount: Math.round((exp.amount * n.nights / total) * 100) / 100 }));
     }
     case "general": {
-      const portionCounts = attendance.map((a) => ({
-        userId: a.userId,
-        portions: getPortionsForUser(a, dates),
-      }));
-      const total = portionCounts.reduce((s, p) => s + p.portions, 0);
-      if (total === 0) return [];
-      return portionCounts
-        .filter((p) => p.portions > 0)
-        .map((p) => ({ userId: p.userId, amount: Math.round((exp.amount * p.portions / total) * 100) / 100 }));
+      const method = exp.splitMethod ?? "portions";
+      const pool = exp.participants.length > 0
+        ? attendance.filter((a) => exp.participants.some((p) => p.userId === a.userId))
+        : attendance;
+      if (pool.length === 0) return [];
+      if (method === "linear") {
+        const share = Math.round((exp.amount / pool.length) * 100) / 100;
+        return pool.map((a) => ({ userId: a.userId, amount: share }));
+      } else {
+        const portionCounts = pool.map((a) => ({
+          userId: a.userId,
+          portions: getPortionsForUser(a, dates),
+        }));
+        const total = portionCounts.reduce((s, p) => s + p.portions, 0);
+        if (total === 0) return [];
+        return portionCounts
+          .filter((p) => p.portions > 0)
+          .map((p) => ({ userId: p.userId, amount: Math.round((exp.amount * p.portions / total) * 100) / 100 }));
+      }
     }
     case "meal":
     case "custom": {

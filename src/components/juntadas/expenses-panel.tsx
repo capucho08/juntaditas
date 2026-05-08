@@ -10,13 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { addExpense, deleteExpense } from "@/db/queries/expenses";
-import { calculateSplit, calculateExpenseShares, type ExpenseShare } from "@/lib/splits";
+import { addExpense, updateExpense, deleteExpense } from "@/db/queries/expenses";
+import { calculateSplit, calculateSimplifiedSplit, calculateExpenseShares, type ExpenseShare } from "@/lib/splits";
 import { getAttendeesForMeal } from "@/lib/attendance";
 import { getDatesInRange } from "@/lib/dates";
-import { EXPENSE_TYPE_LABELS } from "@/lib/expense-types";
-import type { ExpenseType } from "@/lib/expense-types";
-import { Plus, Trash2, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import { EXPENSE_TYPE_LABELS, SPLIT_METHOD_LABELS } from "@/lib/expense-types";
+import type { ExpenseType, SplitMethod } from "@/lib/expense-types";
+import { Plus, Trash2, ArrowRight, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Attendee = { id: string; name: string; email: string };
@@ -27,6 +27,7 @@ const CURRENCY_SYMBOL: Record<Currency, string> = { UYU: "$", USD: "U$S" };
 type Expense = {
   id: string;
   type: string;
+  splitMethod: SplitMethod | null;
   description: string;
   amount: number;
   currency: Currency;
@@ -71,7 +72,7 @@ type Props = {
   currentUserId: string;
 };
 
-const EXPENSE_TYPES: ExpenseType[] = ["house", "general", "meal", "custom"];
+const EXPENSE_TYPES: ExpenseType[] = ["house", "meal", "general"];
 
 const MEAL_TYPE_LABEL = { lunch: "Almuerzo", dinner: "Cena" };
 
@@ -87,16 +88,53 @@ export function ExpensesPanel({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showBalances, setShowBalances] = useState(true);
+  const [showSimplified, setShowSimplified] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  // Add form state
   const [type, setType] = useState<ExpenseType>("general");
+  const [scope, setScope] = useState<"all" | "custom">("all");
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>("portions");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("UYU");
   const [date, setDate] = useState(dateStart);
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
+  // Edit form state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editType, setEditType] = useState<ExpenseType>("general");
+  const [editScope, setEditScope] = useState<"all" | "custom">("all");
+  const [editSplitMethod, setEditSplitMethod] = useState<SplitMethod>("portions");
+  const [editDescription, setEditDescription] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCurrency, setEditCurrency] = useState<Currency>("UYU");
+  const [editDate, setEditDate] = useState(dateStart);
+  const [editPaidBy, setEditPaidBy] = useState("");
+  const [editParticipantIds, setEditParticipantIds] = useState<string[]>([]);
+
   function toggleParticipant(id: string) {
     setParticipantIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
+
+  function toggleEditParticipant(id: string) {
+    setEditParticipantIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  }
+
+  function openEdit(e: Expense) {
+    setEditingExpense(e);
+    setEditType(e.type as ExpenseType);
+    setEditScope(e.participants.length > 0 ? "custom" : "all");
+    setEditSplitMethod(e.splitMethod ?? "portions");
+    setEditDescription(e.description);
+    setEditAmount(String(e.amount));
+    setEditCurrency(e.currency);
+    setEditDate(e.date);
+    setEditPaidBy(e.paidBy);
+    setEditParticipantIds(e.participants.map((p) => p.userId));
+    setEditOpen(true);
   }
 
   function handleAdd() {
@@ -105,17 +143,40 @@ export function ExpensesPanel({
       await addExpense({
         juntadaId,
         type,
+        splitMethod: type === "general" ? splitMethod : undefined,
         description,
         amount: parseFloat(amount),
         currency,
         date,
-        participantIds: type === "custom" ? participantIds : undefined,
+        participantIds: type === "general" && scope === "custom" ? participantIds : undefined,
       });
       setDescription("");
       setAmount("");
       setCurrency("UYU");
+      setScope("all");
+      setSplitMethod("portions");
       setParticipantIds([]);
       setOpen(false);
+    });
+  }
+
+  function handleEdit() {
+    if (!editingExpense || !editDescription || !editAmount) return;
+    startTransition(async () => {
+      await updateExpense({
+        id: editingExpense.id,
+        juntadaId,
+        type: editType,
+        splitMethod: editType === "general" ? editSplitMethod : undefined,
+        description: editDescription,
+        amount: parseFloat(editAmount),
+        currency: editCurrency,
+        date: editDate,
+        paidBy: editPaidBy,
+        participantIds: editType === "general" && editScope === "custom" ? editParticipantIds : undefined,
+      });
+      setEditOpen(false);
+      setEditingExpense(null);
     });
   }
 
@@ -153,6 +214,7 @@ export function ExpensesPanel({
 
   const dates = getDatesInRange(dateStart, dateEnd);
   const split = calculateSplit(allExpenseRecords, attendance, dateStart, dateEnd);
+  const simplifiedSplit = calculateSimplifiedSplit(split);
 
   function getShares(record: typeof allExpenseRecords[0]): ExpenseShare[] {
     return calculateExpenseShares(record, attendance, dates);
@@ -189,13 +251,60 @@ export function ExpensesPanel({
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  {type === "house" && "Se divide por noches entre quienes estuvieron."}
-                  {type === "general" && "Se divide por porciones de día (mañana+mediodía / tarde+noche)."}
-                  {type === "meal" && "Se divide entre los comensales presentes en esa comida."}
-                  {type === "custom" && "Se divide entre las personas que selecciones."}
-                </p>
+                {type === "house" && <p className="text-xs text-muted-foreground">Se divide por noches entre quienes estuvieron.</p>}
+                {type === "meal" && <p className="text-xs text-muted-foreground">Se divide en partes iguales entre todos los asistentes.</p>}
               </div>
+              {type === "general" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Alcance</Label>
+                    <div className="flex gap-2">
+                      {(["all", "custom"] as const).map((s) => (
+                        <button key={s} type="button" onClick={() => setScope(s)}
+                          className={cn("flex-1 py-1.5 rounded-lg text-sm border transition-colors",
+                            scope === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                          )}>
+                          {s === "all" ? "Todos" : "Específicos"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Método de división</Label>
+                    <div className="flex gap-2">
+                      {(["portions", "linear"] as const).map((m) => (
+                        <button key={m} type="button" onClick={() => setSplitMethod(m)}
+                          className={cn("flex-1 py-1.5 rounded-lg text-sm border transition-colors",
+                            splitMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                          )}>
+                          {SPLIT_METHOD_LABELS[m]}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {scope === "all" && splitMethod === "portions" && "Se divide entre todos, proporcionalmente a las porciones de día de cada uno."}
+                      {scope === "all" && splitMethod === "linear" && "Se divide en partes iguales entre todos los asistentes."}
+                      {scope === "custom" && splitMethod === "portions" && "Se divide entre los seleccionados, proporcionalmente a sus porciones de día."}
+                      {scope === "custom" && splitMethod === "linear" && "Se divide en partes iguales entre los seleccionados."}
+                    </p>
+                  </div>
+                  {scope === "custom" && (
+                    <div className="space-y-2">
+                      <Label>Participantes</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {attendees.map((a) => (
+                          <button key={a.id} type="button" onClick={() => toggleParticipant(a.id)}
+                            className={cn("px-3 py-1 rounded-full text-sm border transition-colors",
+                              participantIds.includes(a.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                            )}>
+                            {a.name || a.email.split("@")[0]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="space-y-2">
                 <Label>Descripción</Label>
                 <Input placeholder="Ej: Alquiler casa, nafta..." value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -220,24 +329,7 @@ export function ExpensesPanel({
                 <Label>Fecha</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
-              {type === "custom" && (
-                <div className="space-y-2">
-                  <Label>Entre quiénes se divide</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {attendees.map((a) => (
-                      <button key={a.id} type="button" onClick={() => toggleParticipant(a.id)}
-                        className={cn("px-3 py-1 rounded-full text-sm border transition-colors",
-                          participantIds.includes(a.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
-                        )}>
-                        {a.name || a.email.split("@")[0]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Se registrará como pagado por vos.
-              </p>
+              <p className="text-xs text-muted-foreground">Se registrará como pagado por vos.</p>
             </div>
             <DialogFooter>
               <Button onClick={handleAdd} disabled={isPending || !description || !amount}>
@@ -274,6 +366,9 @@ export function ExpensesPanel({
                     </div>
                     <span className="text-sm font-semibold">{CURRENCY_SYMBOL[e.currency ?? "UYU"]} {e.amount.toFixed(2)}</span>
                     {isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(ev) => { ev.stopPropagation(); openEdit(e); }} disabled={isPending}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }} disabled={isPending}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
@@ -347,21 +442,73 @@ export function ExpensesPanel({
         <>
           <Separator />
           <div className="space-y-3">
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Balances</h3>
-            <div className="space-y-2">
-              {split.map((s, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm p-3 border rounded-lg">
-                  <span className={cn("font-medium", s.userId === currentUserId && "text-destructive")}>
-                    {userName(s.userId)}
-                  </span>
-                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                  <span className={cn("font-medium", s.owes === currentUserId && "text-green-600")}>
-                    {userName(s.owes)}
-                  </span>
-                  <span className="ml-auto font-semibold">{CURRENCY_SYMBOL[s.currency]} {s.amount.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowBalances((v) => !v)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                Balances
+              </h3>
+              {showBalances
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-auto" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground ml-auto" />}
+            </button>
+            {showBalances && (
+              <div className="space-y-2">
+                {split.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm p-3 border rounded-lg">
+                    <span className={cn("font-medium", s.userId === currentUserId && "text-destructive")}>
+                      {userName(s.userId)}
+                    </span>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                    <span className={cn("font-medium", s.owes === currentUserId && "text-green-600")}>
+                      {userName(s.owes)}
+                    </span>
+                    <span className="ml-auto font-semibold">{CURRENCY_SYMBOL[s.currency]} {s.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowSimplified((v) => !v)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                Balance simplificado
+              </h3>
+              {showSimplified
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-auto" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground ml-auto" />}
+            </button>
+            {showSimplified && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Mínima cantidad de transferencias para saldar todas las deudas.
+                </p>
+                {simplifiedSplit.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Todo está saldado.</p>
+                ) : (
+                  simplifiedSplit.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm p-3 border rounded-lg bg-muted/30">
+                      <span className={cn("font-medium", s.userId === currentUserId && "text-destructive")}>
+                        {userName(s.userId)}
+                      </span>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                      <span className={cn("font-medium", s.owes === currentUserId && "text-green-600")}>
+                        {userName(s.owes)}
+                      </span>
+                      <span className="ml-auto font-semibold">{CURRENCY_SYMBOL[s.currency]} {s.amount.toFixed(2)}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -369,6 +516,125 @@ export function ExpensesPanel({
       {expenses.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">No hay gastos registrados todavía.</p>
       )}
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar gasto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={editType} onValueChange={(v) => v && setEditType(v as ExpenseType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {EXPENSE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{EXPENSE_TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editType === "house" && <p className="text-xs text-muted-foreground">Se divide por noches entre quienes estuvieron.</p>}
+              {editType === "meal" && <p className="text-xs text-muted-foreground">Se divide en partes iguales entre todos los asistentes.</p>}
+            </div>
+            {editType === "general" && (
+              <>
+                <div className="space-y-2">
+                  <Label>Alcance</Label>
+                  <div className="flex gap-2">
+                    {(["all", "custom"] as const).map((s) => (
+                      <button key={s} type="button" onClick={() => setEditScope(s)}
+                        className={cn("flex-1 py-1.5 rounded-lg text-sm border transition-colors",
+                          editScope === s ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                        )}>
+                        {s === "all" ? "Todos" : "Específicos"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Método de división</Label>
+                  <div className="flex gap-2">
+                    {(["portions", "linear"] as const).map((m) => (
+                      <button key={m} type="button" onClick={() => setEditSplitMethod(m)}
+                        className={cn("flex-1 py-1.5 rounded-lg text-sm border transition-colors",
+                          editSplitMethod === m ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                        )}>
+                        {SPLIT_METHOD_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {editScope === "all" && editSplitMethod === "portions" && "Se divide entre todos, proporcionalmente a las porciones de día de cada uno."}
+                    {editScope === "all" && editSplitMethod === "linear" && "Se divide en partes iguales entre todos los asistentes."}
+                    {editScope === "custom" && editSplitMethod === "portions" && "Se divide entre los seleccionados, proporcionalmente a sus porciones de día."}
+                    {editScope === "custom" && editSplitMethod === "linear" && "Se divide en partes iguales entre los seleccionados."}
+                  </p>
+                </div>
+                {editScope === "custom" && (
+                  <div className="space-y-2">
+                    <Label>Participantes</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {attendees.map((a) => (
+                        <button key={a.id} type="button" onClick={() => toggleEditParticipant(a.id)}
+                          className={cn("px-3 py-1 rounded-full text-sm border transition-colors",
+                            editParticipantIds.includes(a.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                          )}>
+                          {a.name || a.email.split("@")[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            <div className="space-y-2">
+              <Label>Descripción</Label>
+              <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2 col-span-1">
+                <Label>Moneda</Label>
+                <Select value={editCurrency} onValueChange={(v) => v && setEditCurrency(v as Currency)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="UYU">$ Pesos</SelectItem>
+                    <SelectItem value="USD">U$S Dólares</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Monto</Label>
+                <Input type="number" min="0" step="0.01" placeholder="0.00" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Fecha</Label>
+              <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Pagó</Label>
+              <Select value={editPaidBy} onValueChange={(v) => v && setEditPaidBy(v)}>
+                <SelectTrigger>
+                  <SelectValue>
+                    {(() => { const a = attendees.find((a) => a.id === editPaidBy); return a?.name || a?.email.split("@")[0] || ""; })()}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {attendees.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.name || a.email.split("@")[0]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleEdit} disabled={isPending || !editDescription || !editAmount}>
+              Guardar cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

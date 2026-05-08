@@ -222,6 +222,7 @@ export const expense = sqliteTable("expense", {
   id: text("id").primaryKey(),
   juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
   type: text("type", { enum: ["house", "general", "meal", "custom"] }).notNull(),
+  splitMethod: text("split_method", { enum: ["linear", "portions"] }).notNull().default("portions"),
   description: text("description").notNull(),
   amount: real("amount").notNull(),
   currency: text("currency", { enum: ["UYU", "USD"] }).notNull().default("UYU"),
@@ -235,6 +236,31 @@ export const expense = sqliteTable("expense", {
 export const expenseParticipant = sqliteTable("expense_participant", {
   expenseId: text("expense_id").notNull().references(() => expense.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+});
+
+// ─── Personal lists ───────────────────────────────────────────────────────────
+
+export const personalList = sqliteTable("personal_list", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export const personalListItem = sqliteTable("personal_list_item", {
+  id: text("id").primaryKey(),
+  listId: text("list_id").notNull().references(() => personalList.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
+export const juntadaPersonalItem = sqliteTable("juntada_personal_item", {
+  id: text("id").primaryKey(),
+  juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
 // ─── Notifications ────────────────────────────────────────────────────────────
@@ -344,6 +370,20 @@ export const notificationRelations = relations(notification, ({ one }) => ({
   juntada: one(juntada, { fields: [notification.juntadaId], references: [juntada.id] }),
 }));
 
+export const personalListRelations = relations(personalList, ({ one, many }) => ({
+  user: one(user, { fields: [personalList.userId], references: [user.id] }),
+  items: many(personalListItem),
+}));
+
+export const personalListItemRelations = relations(personalListItem, ({ one }) => ({
+  list: one(personalList, { fields: [personalListItem.listId], references: [personalList.id] }),
+}));
+
+export const juntadaPersonalItemRelations = relations(juntadaPersonalItem, ({ one }) => ({
+  juntada: one(juntada, { fields: [juntadaPersonalItem.juntadaId], references: [juntada.id] }),
+  user: one(user, { fields: [juntadaPersonalItem.userId], references: [user.id] }),
+}));
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type User = typeof user.$inferSelect;
@@ -363,3 +403,6 @@ export type BringTemplateItem = typeof bringTemplateItem.$inferSelect;
 export type SupplyTemplate = typeof supplyTemplate.$inferSelect;
 export type SupplyTemplateItem = typeof supplyTemplateItem.$inferSelect;
 export type MealIngredient = typeof mealIngredient.$inferSelect;
+export type PersonalList = typeof personalList.$inferSelect;
+export type PersonalListItem = typeof personalListItem.$inferSelect;
+export type JuntadaPersonalItem = typeof juntadaPersonalItem.$inferSelect;

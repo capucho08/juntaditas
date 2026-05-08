@@ -68,20 +68,21 @@ export async function deleteMeal(mealId: string, juntadaId: string) {
   revalidatePath(`/juntadas/${juntadaId}`);
 }
 
-export async function addMealCost(data: {
+export async function addMealCosts(data: {
   mealId: string;
   juntadaId: string;
-  amount: number;
-  description?: string;
+  costs: { amount: number; description?: string; paidBy: string }[];
 }) {
-  const session = await requireSession();
-  await db.insert(mealCost).values({
-    id: generateId(),
-    mealId: data.mealId,
-    amount: data.amount,
-    paidBy: session.user.id,
-    description: data.description,
-  });
+  await requireSession();
+  await db.insert(mealCost).values(
+    data.costs.map((c) => ({
+      id: generateId(),
+      mealId: data.mealId,
+      amount: c.amount,
+      paidBy: c.paidBy,
+      description: c.description ?? null,
+    }))
+  );
   revalidatePath(`/juntadas/${data.juntadaId}`);
 }
 

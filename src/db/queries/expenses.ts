@@ -24,6 +24,7 @@ export async function getExpenses(juntadaId: string) {
 export async function addExpense(data: {
   juntadaId: string;
   type: ExpenseType;
+  splitMethod?: "linear" | "portions";
   description: string;
   amount: number;
   currency: "UYU" | "USD";
@@ -38,6 +39,7 @@ export async function addExpense(data: {
     id,
     juntadaId: data.juntadaId,
     type: data.type,
+    splitMethod: data.splitMethod ?? "portions",
     description: data.description,
     amount: data.amount,
     currency: data.currency,
@@ -46,9 +48,44 @@ export async function addExpense(data: {
     mealId: data.mealId,
   });
 
-  if (data.type === "custom" && data.participantIds && data.participantIds.length > 0) {
+  if (data.participantIds && data.participantIds.length > 0) {
     await db.insert(expenseParticipant).values(
       data.participantIds.map((userId) => ({ expenseId: id, userId }))
+    );
+  }
+
+  revalidatePath(`/juntadas/${data.juntadaId}`);
+}
+
+export async function updateExpense(data: {
+  id: string;
+  juntadaId: string;
+  type: ExpenseType;
+  splitMethod?: "linear" | "portions";
+  description: string;
+  amount: number;
+  currency: "UYU" | "USD";
+  date: string;
+  paidBy: string;
+  participantIds?: string[];
+}) {
+  await requireSession();
+
+  await db.update(expense).set({
+    type: data.type,
+    splitMethod: data.splitMethod ?? "portions",
+    description: data.description,
+    amount: data.amount,
+    currency: data.currency,
+    paidBy: data.paidBy,
+    date: data.date,
+  }).where(eq(expense.id, data.id));
+
+  await db.delete(expenseParticipant).where(eq(expenseParticipant.expenseId, data.id));
+
+  if (data.type === "custom" && data.participantIds && data.participantIds.length > 0) {
+    await db.insert(expenseParticipant).values(
+      data.participantIds.map((userId) => ({ expenseId: data.id, userId }))
     );
   }
 

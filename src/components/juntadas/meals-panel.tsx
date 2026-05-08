@@ -19,9 +19,10 @@ type Props = {
   dates: string[];
   attendance: AttendanceRecord[];
   isAdmin: boolean;
+  currentUserId: string;
 };
 
-export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Props) {
+export async function MealsPanel({ juntadaId, dates, attendance, isAdmin, currentUserId }: Props) {
   const meals = await getMealsForJuntada(juntadaId);
   const attendees = attendance.map((a) => a.user);
 
@@ -54,6 +55,7 @@ export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Prop
                 attendees={attendees}
                 presentUserIds={lunchAttendeeIds}
                 isAdmin={isAdmin}
+                currentUserId={currentUserId}
               />
               <MealCard
                 juntadaId={juntadaId}
@@ -64,6 +66,7 @@ export async function MealsPanel({ juntadaId, dates, attendance, isAdmin }: Prop
                 attendees={attendees}
                 presentUserIds={dinnerAttendeeIds}
                 isAdmin={isAdmin}
+                currentUserId={currentUserId}
               />
             </div>
           </div>
