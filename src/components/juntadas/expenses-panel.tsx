@@ -11,12 +11,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { addExpense, updateExpense, deleteExpense } from "@/db/queries/expenses";
+import { addExpenseDependency, deleteExpenseDependency } from "@/db/queries/expense-dependencies";
+import { pushToSplitwise } from "@/db/queries/splitwise";
 import { calculateSplit, calculateSimplifiedSplit, calculateExpenseShares, type ExpenseShare } from "@/lib/splits";
 import { getAttendeesForMeal } from "@/lib/attendance";
 import { getDatesInRange } from "@/lib/dates";
 import { EXPENSE_TYPE_LABELS, SPLIT_METHOD_LABELS } from "@/lib/expense-types";
 import type { ExpenseType, SplitMethod } from "@/lib/expense-types";
-import { Plus, Trash2, ArrowRight, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Plus, Trash2, ArrowRight, ChevronDown, ChevronUp, Pencil, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Attendee = { id: string; name: string; email: string };
@@ -61,6 +63,20 @@ type Meal = {
   costs: MealCost[];
 };
 
+type Dependency = {
+  id: string;
+  dependentId: string;
+  coveredById: string;
+  dependent: Attendee;
+  coveredBy: Attendee;
+};
+
+type PushResult = {
+  created: number;
+  skipped: { description: string; reason: string }[];
+  errors: { description: string; error: string }[];
+};
+
 type Props = {
   juntadaId: string;
   dateStart: string;
@@ -70,6 +86,9 @@ type Props = {
   attendance: AttendanceRecord[];
   attendees: Attendee[];
   currentUserId: string;
+  dependencies: Dependency[];
+  isAdmin: boolean;
+  splitwiseGroupId: string | null;
 };
 
 const EXPENSE_TYPES: ExpenseType[] = ["house", "meal", "general"];
@@ -85,11 +104,20 @@ export function ExpensesPanel({
   attendance,
   attendees,
   currentUserId,
+  dependencies,
+  isAdmin,
+  splitwiseGroupId,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showBalances, setShowBalances] = useState(true);
+  const [showBalances, setShowBalances] = useState(false);
   const [showSimplified, setShowSimplified] = useState(false);
+  const [showDependencies, setShowDependencies] = useState(false);
+  const [expandedBreakdown, setExpandedBreakdown] = useState<string | null>(null);
+  const [newDependent, setNewDependent] = useState("");
+  const [newCoveredBy, setNewCoveredBy] = useState("");
+  const [swPushing, setSwPushing] = useState(false);
+  const [swResult, setSwResult] = useState<PushResult | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Add form state
@@ -100,6 +128,7 @@ export function ExpensesPanel({
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState<Currency>("UYU");
   const [date, setDate] = useState(dateStart);
+  const [paidBy, setPaidBy] = useState(currentUserId);
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
   // Edit form state
@@ -148,13 +177,16 @@ export function ExpensesPanel({
         amount: parseFloat(amount),
         currency,
         date,
+        paidBy,
         participantIds: type === "general" && scope === "custom" ? participantIds : undefined,
       });
       setDescription("");
       setAmount("");
       setCurrency("UYU");
+      setDate(dateStart);
       setScope("all");
       setSplitMethod("portions");
+      setPaidBy(currentUserId);
       setParticipantIds([]);
       setOpen(false);
     });
@@ -186,6 +218,34 @@ export function ExpensesPanel({
     });
   }
 
+  function handleAddDependency() {
+    if (!newDependent || !newCoveredBy || newDependent === newCoveredBy) return;
+    startTransition(async () => {
+      await addExpenseDependency({ juntadaId, dependentId: newDependent, coveredById: newCoveredBy });
+      setNewDependent("");
+      setNewCoveredBy("");
+    });
+  }
+
+  async function handlePushToSplitwise() {
+    setSwPushing(true);
+    setSwResult(null);
+    try {
+      const result = await pushToSplitwise(juntadaId);
+      setSwResult(result);
+    } catch (e) {
+      setSwResult({ created: 0, skipped: [], errors: [{ description: "General", error: String(e) }] });
+    } finally {
+      setSwPushing(false);
+    }
+  }
+
+  function handleDeleteDependency(id: string) {
+    startTransition(async () => {
+      await deleteExpenseDependency(id, juntadaId);
+    });
+  }
+
   // Convert meal costs to expense records splitting among attendees present at each meal
   const mealExpenseRecords = meals.flatMap((m) => {
     const presentUserIds = getAttendeesForMeal(attendance, m.date, m.type);
@@ -214,7 +274,7 @@ export function ExpensesPanel({
 
   const dates = getDatesInRange(dateStart, dateEnd);
   const split = calculateSplit(allExpenseRecords, attendance, dateStart, dateEnd);
-  const simplifiedSplit = calculateSimplifiedSplit(split);
+  const simplifiedSplit = calculateSimplifiedSplit(split, dependencies);
 
   function getShares(record: typeof allExpenseRecords[0]): ExpenseShare[] {
     return calculateExpenseShares(record, attendance, dates);
@@ -228,12 +288,18 @@ export function ExpensesPanel({
   return (
     <div className="space-y-8">
       {/* Add expense */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex gap-4 text-sm text-muted-foreground">
           {totalUYU > 0 && <span>$ <span className="font-semibold text-foreground">{totalUYU.toFixed(2)}</span></span>}
           {totalUSD > 0 && <span>U$S <span className="font-semibold text-foreground">{totalUSD.toFixed(2)}</span></span>}
           {totalUYU === 0 && totalUSD === 0 && <span>Sin gastos registrados</span>}
         </div>
+        <div className="flex gap-2 shrink-0">
+          {isAdmin && splitwiseGroupId && (
+            <Button size="sm" variant="outline" onClick={handlePushToSplitwise} disabled={swPushing || isPending}>
+              {swPushing ? "Exportando..." : "Exportar a Splitwise"}
+            </Button>
+          )}
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button size="sm"><Plus className="w-4 h-4 mr-1" />Agregar gasto</Button>} />
           <DialogContent>
@@ -329,7 +395,21 @@ export function ExpensesPanel({
                 <Label>Fecha</Label>
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </div>
-              <p className="text-xs text-muted-foreground">Se registrará como pagado por vos.</p>
+              <div className="space-y-2">
+                <Label>Pagó</Label>
+                <Select value={paidBy} onValueChange={(v) => v && setPaidBy(v)}>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {(() => { const a = attendees.find((a) => a.id === paidBy); return a?.name || a?.email.split("@")[0] || ""; })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {attendees.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>{a.name || a.email.split("@")[0]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleAdd} disabled={isPending || !description || !amount}>
@@ -338,7 +418,38 @@ export function ExpensesPanel({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      {/* Splitwise export result */}
+      {swResult && (
+        <div className="rounded-lg border p-4 space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <p className="font-medium">
+              {swResult.created > 0
+                ? `✓ ${swResult.created} gasto${swResult.created !== 1 ? "s" : ""} exportado${swResult.created !== 1 ? "s" : ""} a Splitwise`
+                : "No se exportaron gastos"}
+            </p>
+            <button type="button" className="text-muted-foreground hover:text-foreground text-xs" onClick={() => setSwResult(null)}>Cerrar</button>
+          </div>
+          {swResult.skipped.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground font-medium">Omitidos ({swResult.skipped.length})</p>
+              {swResult.skipped.map((s, i) => (
+                <p key={i} className="text-xs text-muted-foreground">· {s.description}: {s.reason}</p>
+              ))}
+            </div>
+          )}
+          {swResult.errors.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-destructive font-medium">Errores ({swResult.errors.length})</p>
+              {swResult.errors.map((e, i) => (
+                <p key={i} className="text-xs text-destructive">· {e.description}: {e.error}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Expense list */}
       {(expenses.length > 0 || meals.some((m) => m.costs.length > 0)) && (
@@ -437,6 +548,94 @@ export function ExpensesPanel({
         </div>
       )}
 
+      {/* Dependencias de gastos */}
+      {attendees.length > 1 && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowDependencies((v) => !v)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <Users className="w-4 h-4 text-muted-foreground" />
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                Quién cubre a quién
+              </h3>
+              {showDependencies
+                ? <ChevronUp className="w-4 h-4 text-muted-foreground ml-auto" />
+                : <ChevronDown className="w-4 h-4 text-muted-foreground ml-auto" />}
+            </button>
+            {showDependencies && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Si alguien cubre los gastos de otro (ej. una pareja), los saldos del dependiente se absorben en el balance simplificado.
+                </p>
+                {dependencies.length > 0 && (
+                  <div className="divide-y border rounded-lg">
+                    {dependencies.map((dep) => (
+                      <div key={dep.id} className="flex items-center gap-2 px-3 py-2 text-sm">
+                        <span className="font-medium">{dep.coveredBy.name || dep.coveredBy.email.split("@")[0]}</span>
+                        <span className="text-muted-foreground text-xs">cubre a</span>
+                        <span className="font-medium">{dep.dependent.name || dep.dependent.email.split("@")[0]}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 ml-auto"
+                          onClick={() => handleDeleteDependency(dep.id)}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Select value={newCoveredBy} onValueChange={(v) => v && setNewCoveredBy(v)}>
+                    <SelectTrigger className="flex-1 h-8 text-sm">
+                      <SelectValue>
+                        {newCoveredBy
+                          ? (() => { const a = attendees.find((a) => a.id === newCoveredBy); return a?.name || a?.email.split("@")[0] || ""; })()
+                          : <span className="text-muted-foreground">Quién cubre</span>}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {attendees.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name || a.email.split("@")[0]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground shrink-0">cubre a</span>
+                  <Select value={newDependent} onValueChange={(v) => v && setNewDependent(v)}>
+                    <SelectTrigger className="flex-1 h-8 text-sm">
+                      <SelectValue>
+                        {newDependent
+                          ? (() => { const a = attendees.find((a) => a.id === newDependent); return a?.name || a?.email.split("@")[0] || ""; })()
+                          : <span className="text-muted-foreground">Quién depende</span>}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {attendees.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>{a.name || a.email.split("@")[0]}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={handleAddDependency}
+                    disabled={isPending || !newDependent || !newCoveredBy || newDependent === newCoveredBy}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
       {/* Balances */}
       {split.length > 0 && (
         <>
@@ -487,25 +686,77 @@ export function ExpensesPanel({
                 : <ChevronDown className="w-4 h-4 text-muted-foreground ml-auto" />}
             </button>
             {showSimplified && (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <p className="text-xs text-muted-foreground">
                   Mínima cantidad de transferencias para saldar todas las deudas.
                 </p>
                 {simplifiedSplit.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Todo está saldado.</p>
                 ) : (
-                  simplifiedSplit.map((s, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm p-3 border rounded-lg bg-muted/30">
-                      <span className={cn("font-medium", s.userId === currentUserId && "text-destructive")}>
-                        {userName(s.userId)}
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                      <span className={cn("font-medium", s.owes === currentUserId && "text-green-600")}>
-                        {userName(s.owes)}
-                      </span>
-                      <span className="ml-auto font-semibold">{CURRENCY_SYMBOL[s.currency]} {s.amount.toFixed(2)}</span>
-                    </div>
-                  ))
+                  (() => {
+                    // Group by creditor (owes) and currency
+                    const byCreditor = simplifiedSplit.reduce<Record<string, typeof simplifiedSplit>>((acc, s) => {
+                      const key = `${s.owes}__${s.currency}`;
+                      if (!acc[key]) acc[key] = [];
+                      acc[key].push(s);
+                      return acc;
+                    }, {});
+                    return Object.entries(byCreditor).map(([key, entries]) => {
+                      const creditorId = entries[0].owes;
+                      const currency = entries[0].currency;
+                      const total = entries.reduce((sum, e) => sum + e.amount, 0);
+                      return (
+                        <div key={key} className="space-y-1">
+                          <div className={cn(
+                            "flex items-center justify-between px-3 py-2 rounded-lg font-semibold text-sm",
+                            creditorId === currentUserId ? "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" : "bg-muted/50 text-foreground"
+                          )}>
+                            <span>{userName(creditorId)} recupera</span>
+                            <span>{CURRENCY_SYMBOL[currency]} {total.toFixed(2)}</span>
+                          </div>
+                          <div className="divide-y border rounded-lg">
+                            {entries.map((s, rowIdx) => {
+                              const rowKey = `${key}__${rowIdx}`;
+                              const isBreakdownOpen = expandedBreakdown === rowKey;
+                              const hasBreakdown = !!(s.breakdown && s.breakdown.length >= 1);
+                              return (
+                                <div key={rowIdx}>
+                                  <div
+                                    className={cn("flex items-center gap-2 text-sm px-3 py-2", hasBreakdown && "cursor-pointer hover:bg-muted/30")}
+                                    onClick={() => hasBreakdown && setExpandedBreakdown(isBreakdownOpen ? null : rowKey)}
+                                  >
+                                    <span className={cn("font-medium", s.userId === currentUserId && "text-destructive")}>
+                                      {userName(s.userId)}
+                                    </span>
+                                    <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                                    <span className={cn("text-muted-foreground", s.owes === currentUserId && "text-green-600 font-medium")}>
+                                      {userName(s.owes)}
+                                    </span>
+                                    <span className="ml-auto font-semibold">{CURRENCY_SYMBOL[currency]} {s.amount.toFixed(2)}</span>
+                                    {hasBreakdown && (
+                                      isBreakdownOpen
+                                        ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                        : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                    )}
+                                  </div>
+                                  {hasBreakdown && isBreakdownOpen && (
+                                    <div className="px-4 pb-2 pt-0.5 space-y-1 bg-muted/20 border-t">
+                                      {s.breakdown!.map((b) => (
+                                        <div key={b.userId} className="flex justify-between text-xs text-muted-foreground pl-2">
+                                          <span>{userName(b.userId)}</span>
+                                          <span>{CURRENCY_SYMBOL[currency]} {b.amount.toFixed(2)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()
                 )}
               </div>
             )}

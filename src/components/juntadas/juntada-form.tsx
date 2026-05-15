@@ -18,6 +18,7 @@ type Props = {
     dateStart: string;
     dateEnd: string;
     description: string | null;
+    splitwiseGroupId: string | null;
   };
 };
 
@@ -40,6 +41,7 @@ export function JuntadaForm({ juntada }: Props) {
       dateStart: (form.elements.namedItem("dateStart") as HTMLInputElement).value,
       dateEnd: (form.elements.namedItem("dateEnd") as HTMLInputElement).value,
       description: (form.elements.namedItem("description") as HTMLTextAreaElement).value || undefined,
+      splitwiseGroupId: (form.elements.namedItem("splitwiseGroupId") as HTMLInputElement).value || undefined,
     };
 
     if (data.dateEnd < data.dateStart) {
@@ -141,6 +143,17 @@ export function JuntadaForm({ juntada }: Props) {
           defaultValue={juntada?.description ?? ""}
           rows={3}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="splitwiseGroupId">Splitwise Group ID (opcional)</Label>
+        <Input
+          id="splitwiseGroupId"
+          name="splitwiseGroupId"
+          placeholder="Ej: 12345678"
+          defaultValue={juntada?.splitwiseGroupId ?? ""}
+        />
+        <p className="text-xs text-muted-foreground">ID del grupo de Splitwise. Se encuentra en la URL del grupo: splitwise.com/groups/<strong>12345678</strong></p>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

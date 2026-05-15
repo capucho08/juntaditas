@@ -67,6 +67,7 @@ export const juntada = sqliteTable("juntada", {
   dateStart: text("date_start").notNull(), // ISO date string YYYY-MM-DD
   dateEnd: text("date_end").notNull(),
   description: text("description"),
+  splitwiseGroupId: text("splitwise_group_id"),
   createdBy: text("created_by").notNull().references(() => user.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
@@ -263,6 +264,17 @@ export const juntadaPersonalItem = sqliteTable("juntada_personal_item", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });
 
+// ─── Expense dependencies ─────────────────────────────────────────────────────
+// "dependentId's share gets absorbed by coveredById" within a juntada
+
+export const expenseDependency = sqliteTable("expense_dependency", {
+  id: text("id").primaryKey(),
+  juntadaId: text("juntada_id").notNull().references(() => juntada.id, { onDelete: "cascade" }),
+  dependentId: text("dependent_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  coveredById: text("covered_by_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export const notification = sqliteTable("notification", {
@@ -370,6 +382,12 @@ export const notificationRelations = relations(notification, ({ one }) => ({
   juntada: one(juntada, { fields: [notification.juntadaId], references: [juntada.id] }),
 }));
 
+export const expenseDependencyRelations = relations(expenseDependency, ({ one }) => ({
+  juntada: one(juntada, { fields: [expenseDependency.juntadaId], references: [juntada.id] }),
+  dependent: one(user, { fields: [expenseDependency.dependentId], references: [user.id] }),
+  coveredBy: one(user, { fields: [expenseDependency.coveredById], references: [user.id] }),
+}));
+
 export const personalListRelations = relations(personalList, ({ one, many }) => ({
   user: one(user, { fields: [personalList.userId], references: [user.id] }),
   items: many(personalListItem),
@@ -406,3 +424,4 @@ export type MealIngredient = typeof mealIngredient.$inferSelect;
 export type PersonalList = typeof personalList.$inferSelect;
 export type PersonalListItem = typeof personalListItem.$inferSelect;
 export type JuntadaPersonalItem = typeof juntadaPersonalItem.$inferSelect;
+export type ExpenseDependency = typeof expenseDependency.$inferSelect;

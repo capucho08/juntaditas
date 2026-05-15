@@ -31,6 +31,7 @@ export async function createJuntada(data: {
   dateStart: string;
   dateEnd: string;
   description?: string;
+  splitwiseGroupId?: string;
 }) {
   const session = await requireAdmin();
   const id = generateId();
@@ -55,6 +56,7 @@ export async function updateJuntada(
     dateStart?: string;
     dateEnd?: string;
     description?: string;
+    splitwiseGroupId?: string;
   }
 ) {
   await requireAdmin();

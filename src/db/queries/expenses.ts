@@ -29,6 +29,7 @@ export async function addExpense(data: {
   amount: number;
   currency: "UYU" | "USD";
   date: string;
+  paidBy?: string;
   mealId?: string;
   participantIds?: string[];
 }) {
@@ -43,7 +44,7 @@ export async function addExpense(data: {
     description: data.description,
     amount: data.amount,
     currency: data.currency,
-    paidBy: session.user.id,
+    paidBy: data.paidBy ?? session.user.id,
     date: data.date,
     mealId: data.mealId,
   });
@@ -83,7 +84,7 @@ export async function updateExpense(data: {
 
   await db.delete(expenseParticipant).where(eq(expenseParticipant.expenseId, data.id));
 
-  if (data.type === "custom" && data.participantIds && data.participantIds.length > 0) {
+  if (data.participantIds && data.participantIds.length > 0) {
     await db.insert(expenseParticipant).values(
       data.participantIds.map((userId) => ({ expenseId: data.id, userId }))
     );

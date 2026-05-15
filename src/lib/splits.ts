@@ -22,11 +22,14 @@ type ExpenseRecord = {
   participants: { userId: string }[];
 };
 
+export type SplitResultBreakdown = { userId: string; amount: number };
+
 export type SplitResult = {
   userId: string;
   owes: string;
   amount: number;
   currency: "UYU" | "USD";
+  breakdown?: SplitResultBreakdown[]; // only present when userId covers others with debt
 };
 
 export function calculateSplit(
@@ -130,7 +133,9 @@ export function calculateSplit(
   return result;
 }
 
-export function calculateSimplifiedSplit(split: SplitResult[]): SplitResult[] {
+export type Dependency = { dependentId: string; coveredById: string };
+
+export function calculateSimplifiedSplit(split: SplitResult[], dependencies: Dependency[] = []): SplitResult[] {
   const result: SplitResult[] = [];
 
   for (const currency of ["UYU", "USD"] as const) {
@@ -142,6 +147,45 @@ export function calculateSimplifiedSplit(split: SplitResult[]): SplitResult[] {
     for (const s of entries) {
       balance[s.userId] = (balance[s.userId] ?? 0) - s.amount;
       balance[s.owes] = (balance[s.owes] ?? 0) + s.amount;
+    }
+
+    // Save original balances before merging so we can compute breakdown later
+    const originalBalance = { ...balance };
+
+    // Build coverage map: coveredById → [dependentIds]
+    const covers: Record<string, string[]> = {};
+    for (const dep of dependencies) {
+      if (!covers[dep.coveredById]) covers[dep.coveredById] = [];
+      covers[dep.coveredById].push(dep.dependentId);
+    }
+
+    // Absorb dependent balances into their coveredBy
+    for (const dep of dependencies) {
+      const depBalance = balance[dep.dependentId] ?? 0;
+      if (depBalance !== 0) {
+        balance[dep.coveredById] = (balance[dep.coveredById] ?? 0) + depBalance;
+        balance[dep.dependentId] = 0;
+      }
+    }
+
+    // For each effective debtor who covers others, build how much debt came from each source.
+    // Only include when the debtor actually covers someone (covers[personId] exists).
+    // Only negative original balances count as debt contributions.
+    const debtPool: Record<string, Record<string, number>> = {};
+    for (const [personId, effectiveBal] of Object.entries(balance)) {
+      if (effectiveBal >= -0.01) continue;
+      const coveredPersons = covers[personId] ?? [];
+      if (coveredPersons.length === 0) continue;
+      const sources = [personId, ...coveredPersons];
+      const contribs: Record<string, number> = {};
+      for (const src of sources) {
+        const orig = originalBalance[src] ?? 0;
+        if (orig < -0.01) contribs[src] = -orig;
+      }
+      const total = Object.values(contribs).reduce((s, v) => s + v, 0);
+      if (total > 0.01) {
+        debtPool[personId] = contribs;
+      }
     }
 
     const debtors = Object.entries(balance)
@@ -161,12 +205,26 @@ export function calculateSimplifiedSplit(split: SplitResult[]): SplitResult[] {
       const payment = Math.min(debtor.amount, creditor.amount);
 
       if (payment > 0.01) {
-        result.push({
-          userId: debtor.id,
-          owes: creditor.id,
-          amount: Math.round(payment * 100) / 100,
-          currency,
-        });
+        const rounded = Math.round(payment * 100) / 100;
+
+        // Compute proportional breakdown if this debtor covers others
+        let breakdown: SplitResultBreakdown[] | undefined;
+        const pool = debtPool[debtor.id];
+        if (pool) {
+          const totalPool = Object.values(pool).reduce((s, v) => s + v, 0);
+          const entries = Object.entries(pool);
+          let allocated = 0;
+          breakdown = entries.map(([userId, debt], idx) => {
+            const isLast = idx === entries.length - 1;
+            const share = isLast
+              ? Math.round((rounded - allocated) * 100) / 100
+              : Math.round((rounded * debt / totalPool) * 100) / 100;
+            allocated += share;
+            return { userId, amount: share };
+          }).filter((b) => b.amount > 0.01);
+        }
+
+        result.push({ userId: debtor.id, owes: creditor.id, amount: rounded, currency, breakdown });
       }
 
       debtor.amount -= payment;

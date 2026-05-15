@@ -8,6 +8,7 @@ import { getMyPersonalLists } from "@/db/queries/personal-lists";
 import { getBringTemplates } from "@/db/queries/bring-templates";
 import { getSupplyTemplates } from "@/db/queries/supply-templates";
 import { getSupplyItems, getThingsToBring } from "@/db/queries/supplies";
+import { getExpenseDependencies } from "@/db/queries/expense-dependencies";
 import { getDrinkConfigs, getDrinkPreferences } from "@/db/queries/drinks";
 import { getSession } from "@/auth/server";
 import { buttonVariants } from "@/components/ui/button";
@@ -31,7 +32,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
   const [juntada, session] = await Promise.all([getJuntada(id), getSession()]);
   if (!juntada || !session) notFound();
 
-  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences, meals, templates, supplyTemplates, personalItems, myPersonalLists] = await Promise.all([
+  const [expenses, supplyItems, things, drinkConfigs, drinkPreferences, meals, templates, supplyTemplates, personalItems, myPersonalLists, expenseDependencies] = await Promise.all([
     getExpenses(id),
     getSupplyItems(id),
     getThingsToBring(id),
@@ -42,6 +43,7 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
     getSupplyTemplates(),
     getJuntadaPersonalItems(id),
     getMyPersonalLists(),
+    getExpenseDependencies(id),
   ]);
 
   const isAdmin = session.user.role === "admin";
@@ -230,6 +232,9 @@ export default async function JuntadaPage({ params }: { params: Promise<{ id: st
             attendance={juntada.attendance as any}
             attendees={attendees as any}
             currentUserId={session.user.id}
+            dependencies={expenseDependencies as any}
+            isAdmin={isAdmin}
+            splitwiseGroupId={juntada.splitwiseGroupId ?? null}
           />
         </TabsContent>
       </Tabs>
